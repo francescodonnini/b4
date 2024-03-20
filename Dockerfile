@@ -1,19 +1,21 @@
-FROM golang:1.19-alpine
+FROM golang:1.21-alpine
 
 RUN apk update
 
-RUN apk add git
-
 WORKDIR /app
 
-COPY go.mod go.sum ./
+RUN apk add iproute2 iputils
+
+COPY go.mod ./
 
 RUN go mod download
 
-COPY *.go ./
-
-RUN mkdir /pb
+COPY . .
 
 RUN go build -o /b4
+
+EXPOSE 5050
+
+CMD setup.sh
 
 ENTRYPOINT ["/b4"]

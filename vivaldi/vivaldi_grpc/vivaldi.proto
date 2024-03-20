@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+
+option go_package = "./vivaldi_pb";
+
+service Vivaldi {
+  rpc GetCoord(google.protobuf.Empty) returns (Coord);
+}
+
+message Coord {
+  repeated double Point = 1;
+  double Height = 2;
+  double Error = 3;
+}

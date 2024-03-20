@@ -1,5 +1,7 @@
 package vivaldi
 
+import "math"
+
 type Coord struct {
 	Point  Vec3d
 	Height float64
@@ -19,13 +21,13 @@ func (c Coord) Magnitude() float64 {
 func (c Coord) Scale(s float64) Coord {
 	return Coord{
 		Point:  c.Point.Scale(s),
-		Height: c.Height * s,
+		Height: c.Height * math.Abs(s),
 	}
 }
 
 func (c Coord) Sub(other Coord) Coord {
 	return Coord{
-		Point:  c.Point.Add(c.Point.Neg()),
+		Point:  c.Point.Sub(other.Point),
 		Height: c.Height + other.Height,
 	}
 }
