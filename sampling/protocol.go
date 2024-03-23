@@ -51,7 +51,6 @@ func (i *Impl) updateView(other *PView) {
 	defer i.mu.Unlock()
 	v := other.Merge(i.view)
 	i.view = v.Select()
-	log.Printf("View updated: %v\n", i.view)
 }
 
 func (i *Impl) send(request *PView, dest shared.Node) {
