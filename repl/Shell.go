@@ -2,11 +2,13 @@ package repl
 
 import (
 	"b4/sampling"
+	"encoding/json"
+	"errors"
 	"strings"
 )
 
 type Shell interface {
-	Execute(line string) string
+	Execute(line string) ([]byte, error)
 }
 
 var Usage = []byte(`Type "help name" to find out more about the function name.
@@ -15,17 +17,21 @@ coord (--ip=address | --all)	returns the coordinate either of specified ip addre
 dist --ip=address				returns the distance between this node and the one specified by the --ip option`)
 
 type Impl struct {
-	sampling sampling.PeerSamplingService
+	sampling *sampling.PeerSamplingService
 }
 
-func (i *Impl) Execute(line string) []byte {
+func NewShell(sampling *sampling.PeerSamplingService) Shell {
+	return &Impl{sampling: sampling}
+}
+
+func (i *Impl) Execute(line string) ([]byte, error) {
 	// help
 	// peers
 	// coord [--ip=<ip> | --all]
 	// dist --ip=<ip>
 	fields := strings.Fields(line)
 	if len(fields) < 1 {
-		return Usage
+		return Usage, nil
 	}
 	switch fields[0] {
 	case "help":
@@ -37,22 +43,27 @@ func (i *Impl) Execute(line string) []byte {
 	case "dist":
 		return i.parseDist(fields)
 	default:
-		return Usage
+		return Usage, nil
 	}
 }
 
-func (i *Impl) parseDist(fields []string) []byte {
+func (i *Impl) parseDist(fields []string) ([]byte, error) {
 	panic("Not implemented yet!")
 }
 
-func (i *Impl) parseCoord(fields []string) []byte {
+func (i *Impl) parseCoord(fields []string) ([]byte, error) {
 	panic("Not implemented yet!")
 }
 
-func (i *Impl) parseHelp(fields []string) []byte {
+func (i *Impl) parseHelp(fields []string) ([]byte, error) {
 	panic("Not implemented yet!")
 }
 
-func (i *Impl) parsePeers(fields []string) []byte {
-	panic("Not implemented yet!")
+func (i *Impl) parsePeers(_ []string) ([]byte, error) {
+	view := i.sampling.View.Descriptors()
+	bytes, err := json.Marshal(view)
+	if err != nil {
+		return make([]byte, 0), errors.New("cannot retrieve list of peers")
+	}
+	return bytes, nil
 }

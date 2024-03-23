@@ -20,13 +20,14 @@ type ModelImpl struct {
 	localError float64
 	mu         *sync.RWMutex
 	sampler    Sampler
+	energy     *EnergySlidingWindow
 }
 
 func DefaultModel() Model {
-	return NewModel(0.25, 0.25, NewMPFilter(4, 0.25))
+	return NewModel(0.25, 0.25, NewMPFilter(4, 0.25), NewEnergySlidingWindow(16, 8.0))
 }
 
-func NewModel(cc, ce float64, sampler Sampler) Model {
+func NewModel(cc, ce float64, sampler Sampler, energy *EnergySlidingWindow) Model {
 	rand.NewSource(time.Now().Unix())
 	return &ModelImpl{
 		cc: cc,
@@ -38,6 +39,7 @@ func NewModel(cc, ce float64, sampler Sampler) Model {
 		localError: rand.Float64(),
 		mu:         &sync.RWMutex{},
 		sampler:    sampler,
+		energy:     energy,
 	}
 }
 
@@ -47,7 +49,7 @@ func (m ModelImpl) Update(rtt time.Duration, coord Coord, remoteError float64, n
 	w := m.localError / (m.localError + remoteError)
 	diff := m.coord.Sub(coord)
 	dist := diff.Magnitude()
-	// filter raw RTTs to remove the outliers. See:
+	// filter raw RTTs to remove outliers. See:
 	// http://nrs.harvard.edu/urn-3:HUL.InstRepos:25686820
 	sample := m.sampler.Update(node, rtt)
 	rttSeconds := sample.Seconds()
@@ -58,6 +60,7 @@ func (m ModelImpl) Update(rtt time.Duration, coord Coord, remoteError float64, n
 	d := m.cc * w
 	shift := diff.Unit().Scale((rttSeconds - dist) * d)
 	m.coord = m.coord.Add(shift)
+	m.energy.Update(coord)
 }
 
 func (m ModelImpl) GetCoord() (Coord, float64) {

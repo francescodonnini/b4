@@ -3,15 +3,20 @@ package main
 import (
 	"b4/discovery"
 	"b4/sampling"
-	"b4/sampling/sampling_grpc"
-	"b4/sampling/sampling_grpc/sampling_pb"
 	"b4/shared"
 	"b4/vivaldi"
 	"b4/vivaldi/vivaldi_grpc"
 	"b4/vivaldi/vivaldi_grpc/vivaldi_pb"
+	"bytes"
+	"context"
+	"encoding/gob"
+	"fmt"
 	"google.golang.org/grpc"
 	"log"
+	"math/rand"
 	"net"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -28,29 +33,29 @@ func main() {
 	disc := discovery.NewDiscoveryService(endpoint, id)
 	peers := disc.GetNodes()
 	for range time.Tick(3 * time.Second) {
-		if len(peers) >= 7 {
+		if len(peers) >= 10 {
 			break
 		}
 		peers = disc.GetNodes()
 	}
 
-	lis, err := net.Listen("tcp", id.Address())
-	if err != nil {
-		log.Fatalf("Failed to listen: %s\n", err)
-	}
-	dialer := shared.NewDialer()
-	samplingClient := sampling_grpc.NewClient(id, dialer)
-	sampl := sampling.NewSamplingService(id, 3, peers, samplingClient)
+	rand.NewSource(time.Now().Unix())
+	rand.Shuffle(len(peers), func(i, j int) {
+		peers[i], peers[j] = peers[j], peers[i]
+	})
+	s := grpc.NewServer()
 	model := vivaldi.DefaultModel()
+	registerServices(s, model)
 
-	server := grpc.NewServer()
-	registerServices(server, model, id, sampl)
-	go startServer(server, lis)
-
-	done := make(chan bool)
-	go startSamplingService(sampl)
-	go startVivaldiService(vivaldi_grpc.NewClient(sampl, model, dialer))
-	<-done
+	// lis, err := net.Listen("tcp", id.Address())
+	// if err != nil {
+	// 	log.Fatalf("Failed to listen: %s\n", err)
+	// }
+	// go startServer(s, lis)
+	protocol := sampling.NewProtocol(id, 4, peers)
+	go startUdpServer(context.Background(), id.Ip, id.Port, protocol)
+	go startUdpClient(protocol)
+	time.Sleep(600 * time.Second)
 }
 
 func startVivaldiService(client vivaldi.Client) {
@@ -59,8 +64,7 @@ func startVivaldiService(client vivaldi.Client) {
 	}
 }
 
-func registerServices(s *grpc.Server, model vivaldi.Model, id shared.Node, sampl sampling.PeerSamplingService) {
-	sampling_pb.RegisterSamplingServer(s, sampling_grpc.NewServer(id, sampl))
+func registerServices(s *grpc.Server, model vivaldi.Model) {
 	vivaldi_pb.RegisterVivaldiServer(s, vivaldi_grpc.NewServer(model))
 }
 
@@ -71,8 +75,65 @@ func startServer(s *grpc.Server, lis net.Listener) {
 	}
 }
 
-func startSamplingService(service sampling.PeerSamplingService) {
-	for range time.Tick(time.Second * 5) {
-		service.OnTimeout()
+func startUdpServer(ctx context.Context, ip string, port int, protocol sampling.Protocol) {
+	address := fmt.Sprintf("%s:%d", ip, port)
+	srv, err := net.ListenPacket("udp", address)
+	if err != nil {
+		log.Fatalf("Cannot listen to %s. Error: %s\n", address, err)
+	}
+	go func() {
+		go func() {
+			<-ctx.Done()
+			_ = srv.Close()
+		}()
+		buf := make([]byte, 4096)
+		for {
+			n, addr, err := srv.ReadFrom(buf)
+			if err != nil {
+				log.Printf("cannot read from udp socket. error: %s\n", err)
+				return
+			}
+			message, err := decodeMessage(buf[:n])
+			if err != nil {
+				continue
+			}
+			if message.Type == sampling.Reply {
+				protocol.OnReceiveReply(sampling.NewView(message.Capacity, message.View))
+			} else {
+				s := addr.String()
+				i := strings.LastIndex(s, ":")
+				port, _ = strconv.Atoi(s[i+1:])
+				source := shared.Node{
+					Ip:   s[:i],
+					Port: port,
+				}
+				protocol.OnReceiveRequest(sampling.NewView(message.Capacity, message.View), source)
+			}
+		}
+	}()
+}
+
+func decodeMessage(payload []byte) (sampling.PViewMessage, error) {
+	var message sampling.PViewMessage
+	dec := gob.NewDecoder(bytes.NewReader(payload))
+	err := dec.Decode(&message)
+	if err != nil {
+		log.Printf("Cannot decode request. Error: %s\n", err)
+		return sampling.PViewMessage{}, err
+	}
+	switch message.Type {
+	case sampling.Reply:
+	case sampling.Request:
+		return message, nil
+	default:
+		log.Printf("unknown message type= %d\n", message.Type)
+	}
+	return sampling.PViewMessage{}, err
+}
+
+func startUdpClient(protocol sampling.Protocol) {
+	ticker := time.NewTicker(3 * time.Second)
+	for range ticker.C {
+		protocol.OnTimeout()
 	}
 }

@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+option go_package = "./shell_pb";
+
+service Shell {
+  rpc Execute(Line) returns(Output);
+}
+
+message Line {
+  string Text = 1;
+}
+
+message Output {
+  string Value = 1;
+}

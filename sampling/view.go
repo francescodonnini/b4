@@ -1,106 +1,99 @@
 package sampling
 
 import (
+	"b4/shared"
 	"math/rand"
+	"sort"
 	"sync"
 	"time"
 )
 
-type PView interface {
-	At(i int) Descriptor
-	Capacity() int
-	Descriptors() []Descriptor
-	Increase() PView
-	Length() int
-	Merge(descriptors ...Descriptor) PView
-	SelectPeer() (Descriptor, bool)
-	SelectView() PView
+type PView struct {
+	capacity int
+	view     []Descriptor
+	mu       *sync.RWMutex
 }
 
-type ViewImpl struct {
-	c    int
-	view []Descriptor
-	mu   *sync.RWMutex
+func NewView(capacity int, view []Descriptor) *PView {
+	return &PView{capacity: capacity, view: view, mu: &sync.RWMutex{}}
 }
 
-func NewView(c int, peers []Descriptor) PView {
-	return &ViewImpl{
-		c:    c,
-		view: peers,
-		mu:   &sync.RWMutex{},
+func (v *PView) Add(descriptor Descriptor) *PView {
+	view := v.Descriptors()
+	i, exists := indexOf(view, descriptor.Node)
+	if exists {
+		view[i] = descriptor
+	} else {
+		view = append(view, descriptor)
 	}
+	return NewView(v.capacity, view)
 }
 
-func (v ViewImpl) At(i int) Descriptor {
-	v.mu.RLock()
-	defer v.mu.RUnlock()
-	return v.view[i]
+func (v *PView) Capacity() int {
+	return v.capacity
 }
 
-func (v ViewImpl) Capacity() int {
-	return v.c
-}
-
-func (v ViewImpl) Descriptors() []Descriptor {
+func (v *PView) Descriptors() []Descriptor {
 	v.mu.RLock()
 	defer v.mu.RUnlock()
 	return v.view[:]
 }
 
-func (v ViewImpl) Increase() PView {
-	view := make([]Descriptor, len(v.view))
-	copy(view, v.Descriptors())
-	for i := range view {
-		view[i].Age++
-	}
-	return NewView(v.c, view)
-}
-
-func (v ViewImpl) Length() int {
+func (v *PView) GetDescriptor() Descriptor {
+	rand.NewSource(time.Now().Unix())
 	v.mu.RLock()
 	defer v.mu.RUnlock()
-	return len(v.view)
+	return v.view[rand.Intn(len(v.view))]
 }
 
-func (v ViewImpl) Merge(descriptors ...Descriptor) PView {
-	view := v.Descriptors()
-	hits := make(map[string]Descriptor)
-	for _, desc := range view {
-		hits[desc.Address()] = desc
+func (v *PView) Merge(view *PView) *PView {
+	set := make(map[string]Descriptor)
+	for _, desc := range view.Descriptors() {
+		set[desc.Address()] = desc
 	}
-	for _, desc := range descriptors {
-		if d, ok := hits[desc.Address()]; ok {
-			if desc.Age < d.Age {
-				hits[d.Address()] = desc
+	for _, desc := range v.Descriptors() {
+		hit, ok := set[desc.Address()]
+		if ok {
+			if hit.Timestamp < desc.Timestamp {
+				set[desc.Address()] = desc
 			}
+		} else {
+			set[desc.Address()] = desc
 		}
 	}
-	view = make([]Descriptor, 0)
-	for _, desc := range hits {
-		view = append(view, desc)
+	buffer := make([]Descriptor, 0)
+	for _, desc := range set {
+		buffer = append(buffer, desc)
 	}
-	return NewView(v.c, view)
+	return NewView(v.capacity, buffer)
 }
 
-func (v ViewImpl) SelectPeer() (Descriptor, bool) {
-	v.mu.RLock()
-	defer v.mu.RUnlock()
-	if len(v.view) == 0 {
-		return Descriptor{}, false
-	}
-	rand.NewSource(time.Now().Unix())
-	return v.view[rand.Intn(len(v.view))], true
-}
-
-func (v ViewImpl) SelectView() PView {
-	if v.Length() == 0 {
-		return NewView(0, make([]Descriptor, 0))
-	}
-	view := make([]Descriptor, len(v.view))
-	copy(view, v.Descriptors())
-	rand.NewSource(time.Now().Unix())
-	rand.Shuffle(len(view), func(i, j int) {
-		view[i], view[j] = view[j], view[i]
+func (v *PView) Select() *PView {
+	view := v.Descriptors()
+	sort.Slice(view, func(i, j int) bool {
+		return view[i].Timestamp > view[j].Timestamp
 	})
-	return NewView(v.c, view[:v.c])
+	return NewView(v.capacity, view[:v.capacity])
+}
+
+func (i *Impl) removeSelf(view []Descriptor) []Descriptor {
+	k, ok := indexOf(view, i.id)
+	if ok {
+		view = append(view[:k], view[k+1:]...)
+	}
+	return view
+}
+
+func indexOf(view []Descriptor, node shared.Node) (int, bool) {
+	i := -1
+	for k, it := range view {
+		if it.Node == node {
+			i = k
+			break
+		}
+	}
+	if i < 0 {
+		return i, false
+	}
+	return i, true
 }
