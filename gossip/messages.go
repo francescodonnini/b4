@@ -1,5 +1,10 @@
 package sampling
 
+import (
+	"b4/shared"
+	"b4/vivaldi"
+)
+
 type MessageType uint8
 
 const (
@@ -11,4 +16,11 @@ type PViewMessage struct {
 	Type     MessageType
 	Capacity int
 	View     []Descriptor
+	Coords   []RemoteCoord
+}
+
+type RemoteCoord struct {
+	Owner shared.Node
+	Coord vivaldi.Coord
+	Age   int64
 }

@@ -29,6 +29,15 @@ func (v *PView) Add(descriptor Descriptor) *PView {
 	return NewView(v.capacity, view)
 }
 
+func indexOf(descriptors []Descriptor, node shared.Node) (int, bool) {
+	for i, it := range descriptors {
+		if it.Node == node {
+			return i, true
+		}
+	}
+	return -1, false
+}
+
 func (v *PView) Capacity() int {
 	return v.capacity
 }
@@ -65,6 +74,7 @@ func (v *PView) Merge(view *PView) *PView {
 	for _, desc := range set {
 		buffer = append(buffer, desc)
 	}
+
 	return NewView(v.capacity, buffer)
 }
 
@@ -74,26 +84,4 @@ func (v *PView) Select() *PView {
 		return view[i].Timestamp > view[j].Timestamp
 	})
 	return NewView(v.capacity, view[:v.capacity])
-}
-
-func (i *Impl) removeSelf(view []Descriptor) []Descriptor {
-	k, ok := indexOf(view, i.id)
-	if ok {
-		view = append(view[:k], view[k+1:]...)
-	}
-	return view
-}
-
-func indexOf(view []Descriptor, node shared.Node) (int, bool) {
-	i := -1
-	for k, it := range view {
-		if it.Node == node {
-			i = k
-			break
-		}
-	}
-	if i < 0 {
-		return i, false
-	}
-	return i, true
 }
