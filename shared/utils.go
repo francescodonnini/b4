@@ -1,6 +1,6 @@
-package main
+package shared
 
-func Filter[T interface{}](l []T, p func(T) bool) []T {
+func RemoveIf[T interface{}](l []T, p func(T) bool) []T {
 	hits := make([]int, 0)
 	for k, it := range l {
 		if p(it) {
@@ -14,13 +14,4 @@ func Filter[T interface{}](l []T, p func(T) bool) []T {
 		shift++
 	}
 	return l
-}
-
-func IndexOf[T comparable](l []T, item T) (int, bool) {
-	for k, it := range l {
-		if it == item {
-			return k, true
-		}
-	}
-	return -1, false
 }

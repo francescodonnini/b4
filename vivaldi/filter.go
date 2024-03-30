@@ -6,17 +6,19 @@ import (
 	"time"
 )
 
-type Sampler interface {
+// Filter offre un servizio generico di sampling degli rtt relativi ad un certo nodo remoto.
+type Filter interface {
 	Update(node shared.Node, rtt time.Duration) time.Duration
 }
 
+// MPFilter filtro non lineare a percentile p.
 type MPFilter struct {
 	windows    map[shared.Node][]time.Duration
 	windowSize int
 	p          float64
 }
 
-func NewMPFilter(windowSize int, p float64) Sampler {
+func NewMPFilter(windowSize int, p float64) Filter {
 	return &MPFilter{windowSize: windowSize, p: p, windows: make(map[shared.Node][]time.Duration)}
 }
 

@@ -2,19 +2,24 @@ package shared
 
 import "sync"
 
-type Publisher[K interface{}] struct {
+type Event struct {
+	Topic   string
+	Content interface{}
+}
+
+type EventBus struct {
 	mu          sync.RWMutex
-	subscribers map[string][]chan K
+	subscribers map[string][]chan Event
 	closed      bool
 }
 
-func NewPublisher[K interface{}]() *Publisher[K] {
-	return &Publisher[K]{
-		subscribers: make(map[string][]chan K),
+func NewEventBus() *EventBus {
+	return &EventBus{
+		subscribers: make(map[string][]chan Event),
 	}
 }
 
-func (p *Publisher[K]) Close() {
+func (p *EventBus) Close() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if !p.closed {
@@ -27,23 +32,23 @@ func (p *Publisher[K]) Close() {
 	}
 }
 
-func (p *Publisher[K]) Subscribe(topic string) <-chan K {
+func (p *EventBus) Subscribe(topic string) <-chan Event {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	ch := make(chan K, 1)
+	ch := make(chan Event, 1)
 	p.subscribers[topic] = append(p.subscribers[topic], ch)
 	return ch
 }
 
-func (p *Publisher[K]) Publish(topic string, message K) {
+func (p *EventBus) Publish(event Event) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	if p.closed {
 		return
 	}
-	for _, ch := range p.subscribers[topic] {
-		go func(ch chan K) {
-			ch <- message
+	for _, ch := range p.subscribers[event.Topic] {
+		go func(ch chan Event) {
+			ch <- event
 		}(ch)
 	}
 }

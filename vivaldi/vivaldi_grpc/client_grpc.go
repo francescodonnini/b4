@@ -1,7 +1,6 @@
 package vivaldi_grpc
 
 import (
-	"b4/sampling"
 	"b4/shared"
 	"b4/vivaldi"
 	"b4/vivaldi/vivaldi_grpc/vivaldi_pb"
@@ -12,12 +11,12 @@ import (
 )
 
 type GrpcClient struct {
-	sampling sampling.PeerSampling
+	sampling shared.PeerSampling
 	model    vivaldi.Model
 	dialer   shared.Dialer
 }
 
-func NewClient(sampling sampling.PeerSampling, model vivaldi.Model, dialer shared.Dialer) GrpcClient {
+func NewClient(sampling shared.PeerSampling, model vivaldi.Model, dialer shared.Dialer) GrpcClient {
 	return GrpcClient{
 		sampling: sampling,
 		model:    model,

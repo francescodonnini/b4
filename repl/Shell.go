@@ -1,7 +1,8 @@
 package repl
 
 import (
-	"b4/sampling"
+	"b4/gossip"
+	"b4/shared"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -17,11 +18,11 @@ coord (--ip=address | --all)	returns the coordinate either of specified ip addre
 dist --ip=address				returns the distance between this node and the one specified by the --ip option`)
 
 type Impl struct {
-	sampling *sampling.PeerSamplingService
+	store gossip.Store
 }
 
-func NewShell(sampling *sampling.PeerSamplingService) Shell {
-	return &Impl{sampling: sampling}
+func NewShell(store gossip.Store) Shell {
+	return &Impl{store: store}
 }
 
 func (i *Impl) Execute(line string) ([]byte, error) {
@@ -52,7 +53,18 @@ func (i *Impl) parseDist(fields []string) ([]byte, error) {
 }
 
 func (i *Impl) parseCoord(fields []string) ([]byte, error) {
-	panic("Not implemented yet!")
+	coord, ok := i.store.Read(shared.Node{
+		Ip:   fields[0],
+		Port: 5050,
+	})
+	if !ok {
+		return make([]byte, 0), nil
+	}
+	bytes, err := json.Marshal(coord)
+	if err != nil {
+		return make([]byte, 0), errors.New("cannot retrieve list of peers")
+	}
+	return bytes, nil
 }
 
 func (i *Impl) parseHelp(fields []string) ([]byte, error) {
@@ -60,7 +72,7 @@ func (i *Impl) parseHelp(fields []string) ([]byte, error) {
 }
 
 func (i *Impl) parsePeers(_ []string) ([]byte, error) {
-	view := i.sampling.View.Descriptors()
+	view := i.store.Peers()
 	bytes, err := json.Marshal(view)
 	if err != nil {
 		return make([]byte, 0), errors.New("cannot retrieve list of peers")

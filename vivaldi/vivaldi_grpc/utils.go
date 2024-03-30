@@ -11,6 +11,5 @@ func (c GrpcClient) proto2model(coord *vivaldi_pb.Coord) (vivaldi.Coord, float64
 			coord.Point[0],
 			coord.Point[1],
 			coord.Point[2]),
-		Height: coord.Height,
 	}, coord.Error
 }

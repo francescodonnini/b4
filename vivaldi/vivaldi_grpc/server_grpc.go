@@ -19,8 +19,7 @@ func NewServer(model vivaldi.Model) vivaldi_pb.VivaldiServer {
 func (s GrpcServer) GetCoord(_ context.Context, _ *emptypb.Empty) (*vivaldi_pb.Coord, error) {
 	coord, err := s.model.GetCoord()
 	return &vivaldi_pb.Coord{
-		Point:  []float64{coord.Point[0], coord.Point[1], coord.Point[2]},
-		Height: coord.Height,
-		Error:  err,
+		Point: []float64{coord.Point[0], coord.Point[1], coord.Point[2]},
+		Error: err,
 	}, nil
 }

@@ -1,4 +1,4 @@
-package sampling
+package gossip
 
 import (
 	"b4/shared"

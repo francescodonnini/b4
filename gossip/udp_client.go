@@ -1,13 +1,11 @@
-package sampling
+package gossip
 
 import (
 	"b4/shared"
-	"b4/vivaldi"
 	"bytes"
 	"encoding/gob"
 	"log"
 	"net"
-	"unsafe"
 )
 
 type UdpClient struct {
@@ -18,18 +16,16 @@ func NewClient(spreader *Spreader) Client {
 	return &UdpClient{spreader: spreader}
 }
 
+// Send invia la vista parziale che il nodo ha sul sistema al peer dest. Oltre alla vista parziale vengono inviate
+// le coordinate del mittente e/o quelle apprese da altri nodi (vedere spreder.go per informazioni su come vengono
+// selezionate le coordinate da diffondere).
 func (c *UdpClient) Send(request *PView, dest shared.Node) {
 	conn, err := net.Dial("udp", dest.Address())
 	if err != nil {
 		log.Printf("Cannot dial to %s. Error: %s\n", dest.Address(), err)
 		return
 	}
-	descriptors := request.Descriptors()
-	numOfBytes := unsafe.Sizeof(descriptors) + unsafe.Sizeof(request.Capacity()) + unsafe.Sizeof(Request)
-	coords, err := c.spreader.Select(numOfBytes)
-	if err != nil {
-		coords = make(map[shared.Node]vivaldi.Coord)
-	}
+	coords := c.spreader.Select(16)
 	message := PViewMessage{
 		Type:     Request,
 		Capacity: request.Capacity(),

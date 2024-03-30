@@ -1,9 +1,4 @@
-package sampling
-
-import (
-	"b4/shared"
-	"b4/vivaldi"
-)
+package gossip
 
 type MessageType uint8
 
@@ -17,10 +12,4 @@ type PViewMessage struct {
 	Capacity int
 	View     []Descriptor
 	Coords   []RemoteCoord
-}
-
-type RemoteCoord struct {
-	Owner shared.Node
-	Coord vivaldi.Coord
-	Age   int64
 }

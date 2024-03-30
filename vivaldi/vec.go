@@ -2,6 +2,8 @@ package vivaldi
 
 import (
 	"math"
+	"math/rand"
+	"time"
 )
 
 type Vec3d [3]float64
@@ -33,4 +35,10 @@ func (v Vec3d) Sub(other Vec3d) Vec3d {
 func (v Vec3d) Unit() Vec3d {
 	m := v.Magnitude()
 	return Vec3d{v[0] / m, v[1] / m, v[2] / m}
+}
+
+func NewRandomUnit() Vec3d {
+	rand.NewSource(time.Now().Unix())
+	v := NewVec3d(rand.Float64(), rand.Float64(), rand.Float64())
+	return v.Unit()
 }

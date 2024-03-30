@@ -1,7 +1,6 @@
-package main
+package gossip
 
 import (
-	sampl "b4/gossip"
 	"b4/shared"
 	"bytes"
 	"context"
@@ -14,14 +13,17 @@ import (
 
 type UdpServer struct {
 	id       shared.Node
-	sampling sampl.Protocol
+	sampling Protocol
 	bus      *shared.EventBus
 }
 
-func NewUdpServer(id shared.Node, sampling sampl.Protocol, bus *shared.EventBus) *UdpServer {
+func NewUdpServer(id shared.Node, sampling Protocol, bus *shared.EventBus) *UdpServer {
 	return &UdpServer{id: id, sampling: sampling, bus: bus}
 }
 
+// Serve mette UdpServer in attesa di pacchetti UDP all'indirizzo specificato nel campo id.
+// Il server si aspetta due tipi di messaggi che possono essere di richiesta (della vista parziale del nodo) e di
+// risposta (ad un richiesta inviata in precedenza). La gestione dei messaggi è delegata a sampling.
 func (s *UdpServer) Serve(ctx context.Context) {
 	address := s.id.Address()
 	srv, err := net.ListenPacket("udp", address)
@@ -33,7 +35,7 @@ func (s *UdpServer) Serve(ctx context.Context) {
 			<-ctx.Done()
 			_ = srv.Close()
 		}()
-		buf := make([]byte, 4096)
+		buf := make([]byte, 65536)
 		for {
 			n, addr, err := srv.ReadFrom(buf)
 			if err != nil {
@@ -44,10 +46,10 @@ func (s *UdpServer) Serve(ctx context.Context) {
 			if err != nil {
 				continue
 			}
-			view := s.removeSelf(message.View)
 			s.bus.Publish(shared.Event{Topic: "coord/update", Content: message.Coords})
-			if message.Type == sampl.Reply {
-				s.sampling.OnReceiveReply(sampl.NewView(message.Capacity, view))
+			view := s.removeSelf(message.View)
+			if message.Type == Reply {
+				s.sampling.OnReceiveReply(NewView(message.Capacity, view))
 			} else {
 				str := addr.String()
 				i := strings.LastIndex(str, ":")
@@ -56,32 +58,32 @@ func (s *UdpServer) Serve(ctx context.Context) {
 					Ip:   str[:i],
 					Port: port,
 				}
-				s.sampling.OnReceiveRequest(sampl.NewView(message.Capacity, view), source)
+				s.sampling.OnReceiveRequest(NewView(message.Capacity, view), source)
 			}
 		}
 	}()
 }
 
-func (s *UdpServer) removeSelf(view []sampl.Descriptor) []sampl.Descriptor {
-	return Filter(view, func(descriptor sampl.Descriptor) bool {
+func (s *UdpServer) removeSelf(view []Descriptor) []Descriptor {
+	return shared.RemoveIf(view, func(descriptor Descriptor) bool {
 		return descriptor.Node == s.id
 	})
 }
 
-func decodeMessage(payload []byte) (sampl.PViewMessage, error) {
-	var message sampl.PViewMessage
+func decodeMessage(payload []byte) (PViewMessage, error) {
+	var message PViewMessage
 	dec := gob.NewDecoder(bytes.NewReader(payload))
 	err := dec.Decode(&message)
 	if err != nil {
 		log.Printf("Cannot decode request. Error: %s\n", err)
-		return sampl.PViewMessage{}, err
+		return PViewMessage{}, err
 	}
 	switch message.Type {
-	case sampl.Reply:
-	case sampl.Request:
+	case Reply:
+	case Request:
 		return message, nil
 	default:
-		log.Printf("unknown message type= %d\n", message.Type)
+		log.Printf("Unknown message type= %d\n", message.Type)
 	}
-	return sampl.PViewMessage{}, err
+	return PViewMessage{}, err
 }
