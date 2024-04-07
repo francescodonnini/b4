@@ -5,6 +5,7 @@ import (
 	"b4/shared"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 )
 
@@ -18,11 +19,12 @@ coord (--ip=address | --all)	returns the coordinate either of specified ip addre
 dist --ip=address				returns the distance between this node and the one specified by the --ip option`)
 
 type Impl struct {
+	id    shared.Node
 	store gossip.Store
 }
 
-func NewShell(store gossip.Store) Shell {
-	return &Impl{store: store}
+func NewShell(id shared.Node, store gossip.Store) Shell {
+	return &Impl{id: id, store: store}
 }
 
 func (i *Impl) Execute(line string) ([]byte, error) {
@@ -49,22 +51,53 @@ func (i *Impl) Execute(line string) ([]byte, error) {
 }
 
 func (i *Impl) parseDist(fields []string) ([]byte, error) {
-	panic("Not implemented yet!")
+	if strings.HasPrefix(fields[0], "--ip=") {
+		_, ip, ok := strings.Cut(fields[0], "=")
+		if ok {
+			self, ok := i.store.Read(i.id)
+			coord, ok := i.store.Read(shared.Node{
+				Ip:   ip,
+				Port: 5050,
+			})
+			if !ok {
+				return make([]byte, 0), nil
+			}
+			bytes, err := json.Marshal(self.Sub(coord).Magnitude())
+			if err != nil {
+				return make([]byte, 0), err
+			}
+			return bytes, nil
+		}
+	}
+	return make([]byte, 0), fmt.Errorf("invalid argument for \"dist\"")
 }
 
 func (i *Impl) parseCoord(fields []string) ([]byte, error) {
-	coord, ok := i.store.Read(shared.Node{
-		Ip:   fields[0],
-		Port: 5050,
-	})
-	if !ok {
-		return make([]byte, 0), nil
+	if fields[0] == "--all" {
+		bytes, err := json.Marshal(i.store.Items())
+		if err != nil {
+			return make([]byte, 0), err
+		}
+		return bytes, nil
+	} else if strings.HasPrefix(fields[0], "--ip=") {
+		_, ip, ok := strings.Cut(fields[0], "=")
+		if ok {
+			coord, ok := i.store.Read(shared.Node{
+				Ip:   ip,
+				Port: 5050,
+			})
+			if !ok {
+				return make([]byte, 0), nil
+			}
+			bytes, err := json.Marshal(coord)
+			if err != nil {
+				return make([]byte, 0), err
+			}
+			return bytes, nil
+		}
 	}
-	bytes, err := json.Marshal(coord)
-	if err != nil {
-		return make([]byte, 0), errors.New("cannot retrieve list of peers")
-	}
-	return bytes, nil
+	return make([]byte, 0), fmt.Errorf("invalid argument for \"coord\"")
+
 }
 
 func (i *Impl) parseHelp(fields []string) ([]byte, error) {

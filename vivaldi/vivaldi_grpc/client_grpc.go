@@ -40,6 +40,7 @@ func (c GrpcClient) Update() {
 		return
 	}
 	rtt := time.Now().Sub(start)
+	// log.Printf("coord/rtt %f\n", rtt.Seconds())
 	coord, remoteError := c.proto2model(res)
 	c.model.Update(rtt, coord, remoteError, p)
 }

@@ -16,6 +16,4 @@ RUN go build -o /b4
 
 EXPOSE 5050
 
-CMD setup.sh
-
-ENTRYPOINT ["/b4"]
+ENTRYPOINT ["sh", "setup.sh"]

@@ -2,6 +2,7 @@ package vivaldi
 
 import (
 	"b4/shared"
+	"log"
 	"math"
 	"math/rand"
 	"sync"
@@ -62,6 +63,11 @@ func (m *ModelImpl) Update(rtt time.Duration, coord Coord, remoteError float64, 
 		Topic:   "coord/sys",
 		Content: m.coord,
 	})
+	log.Printf("error %s %f\n", node.Address(), math.Abs(rtt.Seconds()-distance(m.coord, coord)))
+}
+
+func distance(x, y Coord) float64 {
+	return x.Sub(y).Magnitude()
 }
 
 func (m *ModelImpl) GetCoord() (Coord, float64) {

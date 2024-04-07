@@ -7,7 +7,6 @@ import (
 	"encoding/gob"
 	"log"
 	"net"
-	"strconv"
 	"strings"
 )
 
@@ -23,7 +22,7 @@ func NewUdpServer(id shared.Node, sampling Protocol, bus *shared.EventBus) *UdpS
 
 // Serve mette UdpServer in attesa di pacchetti UDP all'indirizzo specificato nel campo id.
 // Il server si aspetta due tipi di messaggi che possono essere di richiesta (della vista parziale del nodo) e di
-// risposta (ad un richiesta inviata in precedenza). La gestione dei messaggi è delegata a sampling.
+// risposta (a una richiesta inviata in precedenza). La gestione dei messaggi è delegata a sampling.
 func (s *UdpServer) Serve(ctx context.Context) {
 	address := s.id.Address()
 	srv, err := net.ListenPacket("udp", address)
@@ -53,10 +52,9 @@ func (s *UdpServer) Serve(ctx context.Context) {
 			} else {
 				str := addr.String()
 				i := strings.LastIndex(str, ":")
-				port, _ := strconv.Atoi(str[i+1:])
 				source := shared.Node{
 					Ip:   str[:i],
-					Port: port,
+					Port: 5050,
 				}
 				s.sampling.OnReceiveRequest(NewView(message.Capacity, view), source)
 			}

@@ -16,6 +16,6 @@ func NewGrpcServer(shell repl.Shell) *GrpcServer {
 }
 
 func (g *GrpcServer) Execute(_ context.Context, in *shell_pb.Line) (*shell_pb.Output, error) {
-	res, _ := g.shell.Execute(in.Text)
-	return &shell_pb.Output{Value: string(res[:])}, nil
+	res, err := g.shell.Execute(in.Text)
+	return &shell_pb.Output{Value: string(res[:])}, err
 }
