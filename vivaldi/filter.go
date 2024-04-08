@@ -22,7 +22,7 @@ func NewMPFilter(windowSize int, p float64) Filter {
 	return &MPFilter{windowSize: windowSize, p: p, windows: make(map[shared.Node][]time.Duration)}
 }
 
-func (M MPFilter) Update(node shared.Node, rtt time.Duration) time.Duration {
+func (M *MPFilter) Update(node shared.Node, rtt time.Duration) time.Duration {
 	_, ok := M.windows[node]
 	if !ok {
 		M.windows[node] = make([]time.Duration, 0)

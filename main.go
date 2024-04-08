@@ -48,7 +48,6 @@ func main() {
 	go func() {
 		for e := range appLis {
 			pair := e.Content.(shared.Pair[vivaldi.Coord, int64])
-			log.Printf("coord/app: %v\n", pair.First)
 			spreader.Spread(gossip.NewRemoteCoord(id, pair.First, pair.Second))
 		}
 	}()

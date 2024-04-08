@@ -26,7 +26,7 @@ type ModelImpl struct {
 }
 
 func DefaultModel(bus *event_bus.EventBus) Model {
-	return NewModel(0.25, 0.25, 10, NewMPFilter(4, 0.25), bus)
+	return NewModel(0.25, 0.25, 10, NewMPFilter(8, 0.25), bus)
 }
 
 func NewModel(cc, ce float64, n int, sampler Filter, bus *event_bus.EventBus) Model {
@@ -64,7 +64,7 @@ func (m *ModelImpl) Update(rtt time.Duration, coord Coord, remoteError float64, 
 		Topic:   "coord/sys",
 		Content: m.coord,
 	})
-	log.Printf("error %s %f\n", node.Address(), math.Abs(rtt.Seconds()-distance(m.coord, coord)))
+	log.Printf("%s rtt %f error %f\n", node.Address(), rttSeconds, math.Abs(rttSeconds-distance(m.coord, coord)))
 }
 
 func distance(x, y Coord) float64 {
