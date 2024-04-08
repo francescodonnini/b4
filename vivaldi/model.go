@@ -2,6 +2,7 @@ package vivaldi
 
 import (
 	"b4/shared"
+	event_bus "github.com/francescodonnini/pubsub"
 	"log"
 	"math"
 	"math/rand"
@@ -21,14 +22,14 @@ type ModelImpl struct {
 	localError float64
 	mu         *sync.RWMutex
 	sampler    Filter
-	bus        *shared.EventBus
+	bus        *event_bus.EventBus
 }
 
-func DefaultModel(bus *shared.EventBus) Model {
+func DefaultModel(bus *event_bus.EventBus) Model {
 	return NewModel(0.25, 0.25, NewMPFilter(4, 0.25), bus)
 }
 
-func NewModel(cc, ce float64, sampler Filter, bus *shared.EventBus) Model {
+func NewModel(cc, ce float64, sampler Filter, bus *event_bus.EventBus) Model {
 	rand.NewSource(time.Now().Unix())
 	return &ModelImpl{
 		cc: cc,
@@ -59,7 +60,7 @@ func (m *ModelImpl) Update(rtt time.Duration, coord Coord, remoteError float64, 
 	d := m.cc * w
 	shift := diff.Unit().Scale((rttSeconds - dist) * d)
 	m.coord = m.coord.Add(shift)
-	m.bus.Publish(shared.Event{
+	m.bus.Publish(event_bus.Event{
 		Topic:   "coord/sys",
 		Content: m.coord,
 	})

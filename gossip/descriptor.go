@@ -4,9 +4,9 @@ import "b4/shared"
 
 type Descriptor struct {
 	shared.Node
-	Timestamp int64
+	Timestamp int
 }
 
-func NewDescriptor(node shared.Node, timestamp int64) Descriptor {
+func NewDescriptor(node shared.Node, timestamp int) Descriptor {
 	return Descriptor{Node: node, Timestamp: timestamp}
 }

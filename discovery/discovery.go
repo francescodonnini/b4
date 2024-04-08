@@ -1,7 +1,6 @@
 package discovery
 
 import (
-	"b4/discovery/discovery_grpc"
 	"b4/shared"
 )
 
@@ -20,7 +19,7 @@ type Service struct {
 }
 
 func NewDiscoveryService(endpoint, id shared.Node) Discovery {
-	client := discovery_grpc.NewDiscoveryClient(endpoint)
+	client := NewDiscoveryClient(endpoint)
 	return Service{
 		id:     id,
 		client: client,

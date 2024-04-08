@@ -18,11 +18,10 @@ type Client interface {
 }
 
 type Impl struct {
-	mu      sync.RWMutex
-	id      shared.Node
-	view    *PView
-	counter int64
-	client  Client
+	mu     sync.RWMutex
+	id     shared.Node
+	view   *PView
+	client Client
 }
 
 func (i *Impl) GetRandom() (shared.Node, bool) {
@@ -50,33 +49,22 @@ func (i *Impl) OnReceiveReply(reply *PView) {
 }
 
 func (i *Impl) OnReceiveRequest(request *PView, source shared.Node) {
-	reply := i.view.Add(NewDescriptor(i.id, i.now()))
+	reply := i.view.Add(NewDescriptor(i.id, 0))
 	i.client.Send(reply, source)
 	i.updateView(request)
 }
 
 func (i *Impl) OnTimeout() {
 	p := i.view.GetDescriptor()
-	request := i.view.Add(NewDescriptor(i.id, i.now()))
+	request := i.view.Add(NewDescriptor(i.id, 0))
 	i.client.Send(request, p.Node)
-	i.incCounter()
 }
 
 func (i *Impl) updateView(other *PView) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	v := other.Merge(i.view)
-	i.view = v.Select()
-}
-
-func (i *Impl) now() int64 {
-	i.mu.RLock()
-	defer i.mu.RUnlock()
-	return i.counter
-}
-
-func (i *Impl) incCounter() {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-	i.counter += 1
+	v = v.Select()
+	v = v.Increase()
+	i.view = v
 }

@@ -2,6 +2,7 @@ package vivaldi
 
 import (
 	"b4/shared"
+	event_bus "github.com/francescodonnini/pubsub"
 )
 
 // EnergySlidingWindow
@@ -18,11 +19,11 @@ type EnergySlidingWindow struct {
 	windowSize    int
 	threshold     float64
 	ca            Coord
-	bus           *shared.EventBus
+	bus           *event_bus.EventBus
 	age           int64
 }
 
-func NewEnergySlidingWindow(windowSize int, threshold float64, bus *shared.EventBus) *EnergySlidingWindow {
+func NewEnergySlidingWindow(windowSize int, threshold float64, bus *event_bus.EventBus) *EnergySlidingWindow {
 	return &EnergySlidingWindow{windowSize: windowSize, threshold: threshold, startWindow: make([]Coord, 0), currentWindow: make([]Coord, 0), bus: bus, age: 0}
 }
 
@@ -40,7 +41,7 @@ func (e *EnergySlidingWindow) Update(coord Coord) {
 			e.ca = e.currentWindow[m]
 			e.startWindow = e.startWindow[:0]
 			e.currentWindow = e.currentWindow[:0]
-			e.bus.Publish(shared.Event{
+			e.bus.Publish(event_bus.Event{
 				Topic:   "coord/app",
 				Content: shared.NewPair(e.ca, e.age),
 			})

@@ -2,6 +2,7 @@ package gossip
 
 import (
 	"b4/shared"
+	event_bus "github.com/francescodonnini/pubsub"
 	"sync"
 )
 
@@ -30,11 +31,11 @@ type Spreader struct {
 	keySet    []shared.Node
 	lastRound int
 	cache     map[shared.Node]*Value
-	bus       *shared.EventBus
+	bus       *event_bus.EventBus
 	maxN      int
 }
 
-func NewSpreader(bus *shared.EventBus, maxN int) *Spreader {
+func NewSpreader(bus *event_bus.EventBus, maxN int) *Spreader {
 	return &Spreader{
 		bus:       bus,
 		keySet:    make([]shared.Node, 0),
@@ -85,7 +86,7 @@ func (s *Spreader) Spread(updates ...RemoteCoord) {
 			}
 			s.keySet = append(s.keySet, coord.Owner)
 			s.cache[coord.Owner] = NewValue(coord, s.maxN)
-			s.bus.Publish(shared.Event{
+			s.bus.Publish(event_bus.Event{
 				Topic:   "coord/store",
 				Content: coord,
 			})

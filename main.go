@@ -11,6 +11,7 @@ import (
 	"b4/vivaldi/vivaldi_grpc"
 	"b4/vivaldi/vivaldi_grpc/vivaldi_pb"
 	"context"
+	"github.com/francescodonnini/pubsub"
 	"google.golang.org/grpc"
 	"io"
 	"log"
@@ -32,7 +33,7 @@ func main() {
 	_ = discovery.GetNodes()
 	go startHeartBeatClient(discv.NewHeartBeatClient(shared.Node{Ip: "10.0.0.253", Port: 5050}))
 	peers := bootstrap(id, discovery)
-	bus := shared.NewEventBus()
+	bus := event_bus.NewEventBus()
 	spreader := gossip.NewSpreader(bus, 6)
 	membership := gossip.NewProtocol(id, 4, peers, gossip.NewClient(spreader))
 	model := vivaldi.DefaultModel(bus)
@@ -92,7 +93,7 @@ func bootstrap(id shared.Node, discovery discv.Discovery) []shared.Node {
 	return peers
 }
 
-func startUdpServer(ctx context.Context, id shared.Node, membership gossip.Protocol, bus *shared.EventBus) {
+func startUdpServer(ctx context.Context, id shared.Node, membership gossip.Protocol, bus *event_bus.EventBus) {
 	srv := gossip.NewUdpServer(id, membership, bus)
 	srv.Serve(ctx)
 }

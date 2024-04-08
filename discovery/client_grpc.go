@@ -1,16 +1,16 @@
-package discovery_grpc
+package discovery
 
 import (
-	"b4/discovery/discovery_grpc/discovery_pb"
 	"b4/shared"
 	"context"
+	"github.com/francescodonnini/discovery_grpc/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"log"
 )
 
 type GrpcClient struct {
-	client   discovery_pb.DiscoveryClient
+	client   pb.DiscoveryClient
 	endpoint shared.Node
 }
 
@@ -26,7 +26,7 @@ func (g GrpcClient) Join(node shared.Node) []shared.Node {
 	if err != nil {
 		return make([]shared.Node, 0)
 	}
-	res, err := client.Join(context.Background(), &discovery_pb.Node{
+	res, err := client.Join(context.Background(), &pb.Node{
 		Ip:   node.Ip,
 		Port: int32(node.Port),
 	})
@@ -48,13 +48,13 @@ func (g GrpcClient) Exit(node shared.Node) {
 	if err != nil {
 		return
 	}
-	_, err = client.Exit(context.Background(), &discovery_pb.Node{
+	_, err = client.Exit(context.Background(), &pb.Node{
 		Ip:   node.Ip,
 		Port: int32(node.Port),
 	})
 }
 
-func (g GrpcClient) connect(node shared.Node) (discovery_pb.DiscoveryClient, error) {
+func (g GrpcClient) connect(node shared.Node) (pb.DiscoveryClient, error) {
 	if g.client != nil {
 		return g.client, nil
 	}
@@ -63,7 +63,7 @@ func (g GrpcClient) connect(node shared.Node) (discovery_pb.DiscoveryClient, err
 		log.Printf("Cannot connect to %s. Error: %s\n", node.Address(), err)
 		return nil, err
 	}
-	client := discovery_pb.NewDiscoveryClient(conn)
+	client := pb.NewDiscoveryClient(conn)
 	g.client = client
 	return client, nil
 }

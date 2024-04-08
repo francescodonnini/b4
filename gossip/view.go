@@ -59,6 +59,16 @@ func (v *PView) GetDescriptor() Descriptor {
 	return v.view[rand.Intn(len(v.view))]
 }
 
+func (v *PView) Increase() *PView {
+	v.mu.RLock()
+	defer v.mu.RUnlock()
+	view := make([]Descriptor, len(v.view))
+	for i, desc := range v.view {
+		view[i] = NewDescriptor(desc.Node, desc.Timestamp+1)
+	}
+	return NewView(v.capacity, view)
+}
+
 // Merge ritorna una nuova lista che è il risultato dell'unione di v e view. Questo è l'unico caso in cui si produce
 // una vista più grande della capacità, ci si aspetta che dopo Merge venga utilizzato Select per selezionare opportunamente
 // i descrittori dall'unione delle due viste. Il merge non produce viste con descrittori duplicati (con stesso indirizzo). Nel caso di
@@ -71,7 +81,7 @@ func (v *PView) Merge(view *PView) *PView {
 	for _, desc := range v.Descriptors() {
 		hit, ok := set[desc.Address()]
 		if ok {
-			if hit.Timestamp < desc.Timestamp {
+			if hit.Timestamp > desc.Timestamp {
 				set[desc.Address()] = desc
 			}
 		} else {
@@ -82,7 +92,6 @@ func (v *PView) Merge(view *PView) *PView {
 	for _, desc := range set {
 		buffer = append(buffer, desc)
 	}
-
 	return NewView(v.capacity, buffer)
 }
 
@@ -90,7 +99,7 @@ func (v *PView) Merge(view *PView) *PView {
 func (v *PView) Select() *PView {
 	view := v.Descriptors()
 	sort.Slice(view, func(i, j int) bool {
-		return view[i].Timestamp > view[j].Timestamp
+		return view[i].Timestamp < view[j].Timestamp
 	})
 	return NewView(v.capacity, view[:v.capacity])
 }

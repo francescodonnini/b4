@@ -17,7 +17,7 @@ func NewClient(spreader *Spreader) Client {
 }
 
 // Send invia la vista parziale che il nodo ha sul sistema al peer dest. Oltre alla vista parziale vengono inviate
-// le coordinate del mittente e/o quelle apprese da altri nodi (vedere spreder.go per informazioni su come vengono
+// le coordinate del mittente e/o quelle apprese da altri nodi (vedere spreader.go per informazioni su come vengono
 // selezionate le coordinate da diffondere).
 func (c *UdpClient) Send(request *PView, dest shared.Node) {
 	conn, err := net.Dial("udp", dest.Address())

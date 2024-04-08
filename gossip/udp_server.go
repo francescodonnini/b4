@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/gob"
+	event_bus "github.com/francescodonnini/pubsub"
 	"log"
 	"net"
 	"strings"
@@ -13,10 +14,10 @@ import (
 type UdpServer struct {
 	id       shared.Node
 	sampling Protocol
-	bus      *shared.EventBus
+	bus      *event_bus.EventBus
 }
 
-func NewUdpServer(id shared.Node, sampling Protocol, bus *shared.EventBus) *UdpServer {
+func NewUdpServer(id shared.Node, sampling Protocol, bus *event_bus.EventBus) *UdpServer {
 	return &UdpServer{id: id, sampling: sampling, bus: bus}
 }
 
@@ -45,7 +46,7 @@ func (s *UdpServer) Serve(ctx context.Context) {
 			if err != nil {
 				continue
 			}
-			s.bus.Publish(shared.Event{Topic: "coord/update", Content: message.Coords})
+			s.bus.Publish(event_bus.Event{Topic: "coord/update", Content: message.Coords})
 			view := s.removeSelf(message.View)
 			if message.Type == Reply {
 				s.sampling.OnReceiveReply(NewView(message.Capacity, view))
