@@ -1,13 +1,17 @@
 package vivaldi
 
 type Coord struct {
-	Point Vec3d
+	Point Vec
 }
 
 func (c Coord) Add(other Coord) Coord {
 	return Coord{
 		Point: c.Point.Add(other.Point),
 	}
+}
+
+func (c Coord) Dim() int {
+	return c.Point.Dim()
 }
 
 func (c Coord) Magnitude() float64 {

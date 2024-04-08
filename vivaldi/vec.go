@@ -6,39 +6,61 @@ import (
 	"time"
 )
 
-type Vec3d [3]float64
+type Vec []float64
 
-func NewVec3d(x, y, z float64) Vec3d {
-	return Vec3d{x, y, z}
+func (v Vec) Add(other Vec) Vec {
+	checkDim(v, other)
+	values := make([]float64, v.Dim())
+	for i := 0; i < v.Dim(); i++ {
+		values[i] = v[i] + other[i]
+	}
+	return values
 }
 
-func (v Vec3d) Add(other Vec3d) Vec3d {
-	return Vec3d{v[0] + other[0], v[1] + other[1], v[2] + other[2]}
+func checkDim(u, v Vec) {
+	if u.Dim() != v.Dim() {
+		panic("dimensions do not match!")
+	}
 }
 
-func (v Vec3d) Magnitude() float64 {
-	return math.Sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2])
+func (v Vec) Dim() int {
+	return len(v)
 }
 
-func (v Vec3d) Neg() Vec3d {
+func (v Vec) Magnitude() float64 {
+	sum := 0.0
+	for _, x := range v {
+		sum += x * x
+	}
+	return math.Sqrt(sum)
+}
+
+func (v Vec) Neg() Vec {
 	return v.Scale(-1.0)
 }
 
-func (v Vec3d) Scale(s float64) Vec3d {
-	return Vec3d{s * v[0], s * v[1], s * v[2]}
+func (v Vec) Scale(s float64) Vec {
+	values := make([]float64, v.Dim())
+	for i, x := range v {
+		values[i] = x * s
+	}
+	return values
 }
 
-func (v Vec3d) Sub(other Vec3d) Vec3d {
-	return Vec3d{v[0] - other[0], v[1] - other[1], v[2] - other[2]}
+func (v Vec) Sub(other Vec) Vec {
+	return v.Add(other.Scale(-1.0))
 }
 
-func (v Vec3d) Unit() Vec3d {
+func (v Vec) Unit() Vec {
 	m := v.Magnitude()
-	return Vec3d{v[0] / m, v[1] / m, v[2] / m}
+	return v.Scale(1 / m)
 }
 
-func NewRandomUnit() Vec3d {
+func NewRandomUnit(n int) Vec {
 	rand.NewSource(time.Now().Unix())
-	v := NewVec3d(rand.Float64(), rand.Float64(), rand.Float64())
-	return v.Unit()
+	values := make([]float64, n)
+	for i := 0; i < n; i++ {
+		values[i] = rand.Float64()
+	}
+	return values
 }

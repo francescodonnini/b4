@@ -26,16 +26,16 @@ type ModelImpl struct {
 }
 
 func DefaultModel(bus *event_bus.EventBus) Model {
-	return NewModel(0.25, 0.25, NewMPFilter(4, 0.25), bus)
+	return NewModel(0.25, 0.25, 10, NewMPFilter(4, 0.25), bus)
 }
 
-func NewModel(cc, ce float64, sampler Filter, bus *event_bus.EventBus) Model {
+func NewModel(cc, ce float64, n int, sampler Filter, bus *event_bus.EventBus) Model {
 	rand.NewSource(time.Now().Unix())
 	return &ModelImpl{
 		cc: cc,
 		ce: ce,
 		coord: Coord{
-			Point: NewRandomUnit(),
+			Point: NewRandomUnit(n),
 		},
 		localError: rand.Float64(),
 		mu:         &sync.RWMutex{},
