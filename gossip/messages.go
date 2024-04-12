@@ -8,23 +8,39 @@ import (
 type MessageType uint8
 
 const (
-	Reply   MessageType = iota
-	Request MessageType = iota
+	Reply   = iota
+	Request = iota
 )
 
 type PViewMessage struct {
-	Type      MessageType
-	Capacity  int
-	View      []Descriptor
+	Capacity int
+	View     []Descriptor
+}
+
+type Message struct {
+	PViewMessage
 	Coords    []RemoteCoord
+	Source    shared.Node
 	Timestamp time.Time
-	Srv       shared.Node
+	Type      MessageType
 }
 
-func NewReply(capacity int, view []Descriptor, coords []RemoteCoord, timestamp time.Time, srv shared.Node) PViewMessage {
-	return PViewMessage{Type: Reply, Capacity: capacity, View: view, Coords: coords, Timestamp: timestamp, Srv: srv}
+func NewReply(view PViewMessage, coords []RemoteCoord, timestamp time.Time, source shared.Node) Message {
+	return Message{
+		PViewMessage: view,
+		Coords:       coords,
+		Source:       source,
+		Timestamp:    timestamp,
+		Type:         Reply,
+	}
 }
 
-func NewRequest(capacity int, view []Descriptor, coords []RemoteCoord, timestamp time.Time, srv shared.Node) PViewMessage {
-	return PViewMessage{Type: Request, Capacity: capacity, View: view, Coords: coords, Timestamp: timestamp, Srv: srv}
+func NewRequest(view PViewMessage, coords []RemoteCoord, timestamp time.Time, source shared.Node) Message {
+	return Message{
+		PViewMessage: view,
+		Coords:       coords,
+		Source:       source,
+		Timestamp:    timestamp,
+		Type:         Request,
+	}
 }

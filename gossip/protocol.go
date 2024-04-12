@@ -9,13 +9,13 @@ import (
 
 type Protocol interface {
 	OnTimeout()
-	OnReceiveReply(reply PViewMessage)
-	OnReceiveRequest(request PViewMessage)
+	OnReceiveReply(reply Message)
+	OnReceiveRequest(request Message) (PViewMessage, shared.Node)
 }
 
 type Client interface {
-	SendRequest(request PViewMessage, dest shared.Node)
-	SendReply(reply PViewMessage, dest shared.Node)
+	SendRequest(view PViewMessage, dest shared.Node)
+	SendReply(view PViewMessage, timestamp time.Time, dest shared.Node)
 }
 
 type Impl struct {
@@ -45,21 +45,27 @@ func NewProtocol(id shared.Node, capacity int, peers []shared.Node, client Clien
 	return &Impl{id: id, view: NewView(capacity, view), client: client}
 }
 
-func (i *Impl) OnReceiveReply(reply PViewMessage) {
+func (i *Impl) OnReceiveReply(reply Message) {
 	i.updateView(NewView(reply.Capacity, reply.View))
 }
 
-func (i *Impl) OnReceiveRequest(request PViewMessage) {
+func (i *Impl) OnReceiveRequest(request Message) (PViewMessage, shared.Node) {
 	v := i.view.Add(NewDescriptor(i.id, 0))
-	reply := NewReply(v.capacity, v.Descriptors(), nil, request.Timestamp, i.id)
-	i.client.SendReply(reply, request.Srv)
+	reply := PViewMessage{
+		Capacity: v.capacity,
+		View:     v.Descriptors(),
+	}
 	i.updateView(NewView(request.Capacity, request.View))
+	return reply, request.Source
 }
 
 func (i *Impl) OnTimeout() {
 	p := i.view.GetDescriptor()
 	v := i.view.Add(NewDescriptor(i.id, 0))
-	request := NewRequest(v.capacity, v.Descriptors(), nil, time.Now(), i.id)
+	request := PViewMessage{
+		Capacity: v.capacity,
+		View:     v.Descriptors(),
+	}
 	i.client.SendRequest(request, p.Node)
 }
 

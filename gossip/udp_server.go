@@ -15,6 +15,7 @@ type UdpServer struct {
 	id       shared.Node
 	sampling Protocol
 	filter   shared.Filter
+	client   Client
 	bus      *event_bus.EventBus
 }
 
@@ -51,10 +52,11 @@ func (s *UdpServer) Serve(ctx context.Context) {
 			message.View = s.removeSelf(message.View)
 			if message.Type == Reply {
 				rtt := time.Now().Sub(message.Timestamp)
-				s.filter.Update(message.Srv, rtt)
+				s.filter.Update(message.Source, rtt)
 				s.sampling.OnReceiveReply(message)
 			} else if message.Type == Request {
-				s.sampling.OnReceiveRequest(message)
+				reply, source := s.sampling.OnReceiveRequest(message)
+				s.client.SendReply(reply, message.Timestamp, source)
 			}
 		}
 	}()
@@ -66,13 +68,13 @@ func (s *UdpServer) removeSelf(view []Descriptor) []Descriptor {
 	})
 }
 
-func decodeMessage(payload []byte) (PViewMessage, error) {
-	var message PViewMessage
+func decodeMessage(payload []byte) (Message, error) {
+	var message Message
 	dec := gob.NewDecoder(bytes.NewReader(payload))
 	err := dec.Decode(&message)
 	if err != nil {
 		log.Printf("Cannot decode request. Error: %s\n", err)
-		return PViewMessage{}, err
+		return Message{}, err
 	}
 	switch message.Type {
 	case Reply, Request:
@@ -80,5 +82,5 @@ func decodeMessage(payload []byte) (PViewMessage, error) {
 	default:
 		log.Printf("Unknown message type= %d\n", message.Type)
 	}
-	return PViewMessage{}, err
+	return Message{}, err
 }
