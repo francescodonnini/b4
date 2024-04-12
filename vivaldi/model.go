@@ -2,8 +2,7 @@ package vivaldi
 
 import (
 	"b4/shared"
-	event_bus "github.com/francescodonnini/pubsub"
-	"log"
+	eventbus "github.com/francescodonnini/pubsub"
 	"math"
 	"math/rand"
 	"sync"
@@ -21,15 +20,11 @@ type ModelImpl struct {
 	coord      Coord
 	localError float64
 	mu         *sync.RWMutex
-	sampler    Filter
-	bus        *event_bus.EventBus
+	sampler    shared.Filter
+	bus        *eventbus.EventBus
 }
 
-func DefaultModel(bus *event_bus.EventBus) Model {
-	return NewModel(0.25, 0.25, 10, NewMPFilter(8, 0.25), bus)
-}
-
-func NewModel(cc, ce float64, n int, sampler Filter, bus *event_bus.EventBus) Model {
+func NewModel(cc, ce float64, n int, sampler shared.Filter, bus *eventbus.EventBus) Model {
 	rand.NewSource(time.Now().Unix())
 	return &ModelImpl{
 		cc: cc,
@@ -60,11 +55,10 @@ func (m *ModelImpl) Update(rtt time.Duration, coord Coord, remoteError float64, 
 	d := m.cc * w
 	shift := diff.Unit().Scale((rttSeconds - dist) * d)
 	m.coord = m.coord.Add(shift)
-	m.bus.Publish(event_bus.Event{
+	m.bus.Publish(eventbus.Event{
 		Topic:   "coord/sys",
 		Content: m.coord,
 	})
-	log.Printf("%s rtt %f error %f\n", node.Address(), rttSeconds, math.Abs(rttSeconds-distance(m.coord, coord)))
 }
 
 func distance(x, y Coord) float64 {

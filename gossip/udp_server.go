@@ -8,17 +8,18 @@ import (
 	event_bus "github.com/francescodonnini/pubsub"
 	"log"
 	"net"
-	"strings"
+	"time"
 )
 
 type UdpServer struct {
 	id       shared.Node
 	sampling Protocol
+	filter   shared.Filter
 	bus      *event_bus.EventBus
 }
 
-func NewUdpServer(id shared.Node, sampling Protocol, bus *event_bus.EventBus) *UdpServer {
-	return &UdpServer{id: id, sampling: sampling, bus: bus}
+func NewUdpServer(id shared.Node, sampling Protocol, filter shared.Filter, bus *event_bus.EventBus) *UdpServer {
+	return &UdpServer{id: id, sampling: sampling, bus: bus, filter: filter}
 }
 
 // Serve mette UdpServer in attesa di pacchetti UDP all'indirizzo specificato nel campo id.
@@ -28,7 +29,7 @@ func (s *UdpServer) Serve(ctx context.Context) {
 	address := s.id.Address()
 	srv, err := net.ListenPacket("udp", address)
 	if err != nil {
-		log.Fatalf("Cannot listen to %s. Error: %s\n", address, err)
+		log.Fatalf("cannot listen to %s, error: %s\n", address, err)
 	}
 	go func() {
 		go func() {
@@ -37,9 +38,9 @@ func (s *UdpServer) Serve(ctx context.Context) {
 		}()
 		buf := make([]byte, 65536)
 		for {
-			n, addr, err := srv.ReadFrom(buf)
+			n, _, err := srv.ReadFrom(buf)
 			if err != nil {
-				log.Printf("cannot read from udp socket. error: %s\n", err)
+				log.Printf("cannot read from udp socket, error: %s\n", err)
 				return
 			}
 			message, err := decodeMessage(buf[:n])
@@ -47,17 +48,13 @@ func (s *UdpServer) Serve(ctx context.Context) {
 				continue
 			}
 			s.bus.Publish(event_bus.Event{Topic: "coord/update", Content: message.Coords})
-			view := s.removeSelf(message.View)
+			message.View = s.removeSelf(message.View)
 			if message.Type == Reply {
-				s.sampling.OnReceiveReply(NewView(message.Capacity, view))
-			} else {
-				str := addr.String()
-				i := strings.LastIndex(str, ":")
-				source := shared.Node{
-					Ip:   str[:i],
-					Port: 5050,
-				}
-				s.sampling.OnReceiveRequest(NewView(message.Capacity, view), source)
+				rtt := time.Now().Sub(message.Timestamp)
+				s.filter.Update(message.Srv, rtt)
+				s.sampling.OnReceiveReply(message)
+			} else if message.Type == Request {
+				s.sampling.OnReceiveRequest(message)
 			}
 		}
 	}()
@@ -78,8 +75,7 @@ func decodeMessage(payload []byte) (PViewMessage, error) {
 		return PViewMessage{}, err
 	}
 	switch message.Type {
-	case Reply:
-	case Request:
+	case Reply, Request:
 		return message, nil
 	default:
 		log.Printf("Unknown message type= %d\n", message.Type)

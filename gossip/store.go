@@ -2,15 +2,13 @@ package gossip
 
 import (
 	"b4/shared"
-	"b4/vivaldi"
-	"log"
 	"sync"
 )
 
 type Store interface {
 	Peers() []shared.Node
 	Items() []RemoteCoord
-	Read(node shared.Node) (vivaldi.Coord, bool)
+	Read(node shared.Node) (RemoteCoord, bool)
 	Save(coord RemoteCoord)
 }
 
@@ -45,22 +43,21 @@ func (s *StoreImpl) Peers() []shared.Node {
 	return peers
 }
 
-func (s *StoreImpl) Read(node shared.Node) (vivaldi.Coord, bool) {
+func (s *StoreImpl) Read(node shared.Node) (RemoteCoord, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	c, ok := s.coords[node]
 	if !ok {
-		return vivaldi.Coord{}, ok
+		return RemoteCoord{}, ok
 	}
-	return c.Coord, ok
+	return c, ok
 }
 
 func (s *StoreImpl) Save(coord RemoteCoord) {
 	s.mu.Lock()
 	s.mu.Unlock()
 	c, ok := s.coords[coord.Owner]
-	if !ok || c.Age < coord.Age {
+	if !ok || c.Age.Before(coord.Age) {
 		s.coords[coord.Owner] = coord
-		log.Printf("coord/store: %v\n", coord)
 	}
 }

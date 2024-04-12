@@ -11,32 +11,29 @@ import (
 	"b4/vivaldi/vivaldi_grpc"
 	"b4/vivaldi/vivaldi_grpc/vivaldi_pb"
 	"context"
-	"github.com/francescodonnini/pubsub"
+	eventbus "github.com/francescodonnini/pubsub"
 	"google.golang.org/grpc"
 	"io"
 	"log"
 	"net"
-	"os"
-	"strconv"
 	"time"
 )
 
 func main() {
-	if enabled, err := strconv.ParseBool(os.Getenv("LOGGING_ENABLED")); err != nil || enabled == false {
+	settings := shared.NewSettings()
+	if enabled, ok := settings.GetBool("LOGGING_ENABLED"); !ok || enabled == false {
 		log.SetOutput(io.Discard)
 	}
-	ip := shared.GetIp()
-	id := shared.Node{Ip: ip.String(), Port: 5050}
-	// TODO: Leggere IP registry da file di configurazione.
-	endpoint := shared.Node{Ip: "10.0.0.253", Port: 5050}
-	discovery := discv.NewDiscoveryService(endpoint, id)
-	_ = discovery.GetNodes()
-	go startHeartBeatClient(discv.NewHeartBeatClient(shared.Node{Ip: "10.0.0.253", Port: 5050}))
-	peers := bootstrap(id, discovery)
-	bus := event_bus.NewEventBus()
-	spreader := gossip.NewSpreader(bus, 6)
-	membership := gossip.NewProtocol(id, 4, peers, gossip.NewClient(spreader))
-	model := vivaldi.DefaultModel(bus)
+	id := shared.GetAddress()
+	endpoint := shared.GetRegistryAddress()
+	discClient := discv.NewDiscoveryClient(endpoint)
+	discClient.Join(id)
+	go startHeartBeatClient(discv.NewHeartBeatClient(endpoint), settings)
+	peers := bootstrap(id, discClient)
+	bus := eventbus.NewEventBus()
+	filter := newFilter(settings)
+	model := newVivaldiModel(bus, filter, settings)
+	spreader, membership := newMembershipProtocol(peers, bus)
 	energy := vivaldi.NewEnergySlidingWindow(16, 0.001, bus)
 	energyLis := bus.Subscribe("coord/sys")
 	go func() {
@@ -47,7 +44,7 @@ func main() {
 	appLis := bus.Subscribe("coord/app")
 	go func() {
 		for e := range appLis {
-			pair := e.Content.(shared.Pair[vivaldi.Coord, int64])
+			pair := e.Content.(shared.Pair[vivaldi.Coord, time.Time])
 			spreader.Spread(gossip.NewRemoteCoord(id, pair.First, pair.Second))
 		}
 	}()
@@ -70,21 +67,21 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to listen: %s\n", err)
 	}
-	go startVivaldiClient(membership, model)
+	go startVivaldiClient(membership, model, settings)
 	go startGrpcServices(model, repl.NewShell(id, store), lis)
-	go startUdpServer(context.Background(), id, membership, bus)
-	go startUdpClient(membership)
+	go startUdpServer(context.Background(), id, filter, membership, bus)
+	go startUdpClient(membership, settings)
 	select {}
 }
 
-func bootstrap(id shared.Node, discovery discv.Discovery) []shared.Node {
-	peers := discovery.GetNodes()
+func bootstrap(id shared.Node, discovery discv.Client) []shared.Node {
+	peers := discovery.Join(id)
 	ticker := time.NewTicker(3 * time.Second)
 	for range ticker.C {
 		if len(peers) >= 10 {
 			break
 		}
-		peers = discovery.GetNodes()
+		peers = discovery.Join(id)
 	}
 	peers = shared.RemoveIf(peers, func(node shared.Node) bool {
 		return node == id
@@ -92,8 +89,8 @@ func bootstrap(id shared.Node, discovery discv.Discovery) []shared.Node {
 	return peers
 }
 
-func startUdpServer(ctx context.Context, id shared.Node, membership gossip.Protocol, bus *event_bus.EventBus) {
-	srv := gossip.NewUdpServer(id, membership, bus)
+func startUdpServer(ctx context.Context, id shared.Node, filter shared.Filter, membership gossip.Protocol, bus *eventbus.EventBus) {
+	srv := gossip.NewUdpServer(id, membership, filter, bus)
 	srv.Serve(ctx)
 }
 
@@ -107,23 +104,79 @@ func startGrpcServices(model vivaldi.Model, shell repl.Shell, lis net.Listener) 
 	}
 }
 
-func startVivaldiClient(sampl shared.PeerSampling, model vivaldi.Model) {
+func startVivaldiClient(sampl shared.PeerSampling, model vivaldi.Model, settings shared.Settings) {
+	timeout, ok := settings.GetInt("GOSSIP_TIMEOUT")
+	if !ok {
+		timeout = 3000
+	}
 	client := vivaldi_grpc.NewClient(sampl, model, shared.NewDialer())
-	for range time.Tick(3 * time.Second) {
+	ticker := time.NewTicker(time.Duration(timeout) * time.Millisecond)
+	for range ticker.C {
 		client.Update()
 	}
 }
 
-func startUdpClient(protocol gossip.Protocol) {
-	ticker := time.NewTicker(3 * time.Second)
+func startUdpClient(protocol gossip.Protocol, settings shared.Settings) {
+	timeout, ok := settings.GetInt("GOSSIP_TIMEOUT")
+	if !ok {
+		timeout = 3000
+	}
+	ticker := time.NewTicker(time.Duration(timeout) * time.Millisecond)
 	for range ticker.C {
 		protocol.OnTimeout()
 	}
 }
 
-func startHeartBeatClient(beat *discv.HeartBeatClient) {
-	ticker := time.NewTicker(1 * time.Second)
+func startHeartBeatClient(beat *discv.HeartBeatClient, settings shared.Settings) {
+	timeout, ok := settings.GetInt("HEARTBEAT_TIMEOUT")
+	if !ok {
+		timeout = 5000
+	}
+	ticker := time.NewTicker(time.Duration(timeout) * time.Millisecond)
 	for range ticker.C {
 		beat.Beat()
 	}
+}
+
+func newFilter(settings shared.Settings) shared.Filter {
+	winSz, ok := settings.GetInt("MPF_WINDOW_SIZE")
+	if !ok {
+		winSz = 16
+	}
+	p, ok := settings.GetFloat("MPF_PERCENTILE")
+	if !ok {
+		p = 0.25
+	}
+	return shared.NewMPFilter(winSz, p)
+}
+
+func newVivaldiModel(bus *eventbus.EventBus, filter shared.Filter, settings shared.Settings) vivaldi.Model {
+	cc, ok := settings.GetFloat("CC")
+	if !ok {
+		cc = 0.25
+	}
+	ce, ok := settings.GetFloat("CE")
+	if !ok {
+		ce = 0.25
+	}
+	dim, ok := settings.GetInt("DIMENSIONALITY")
+	if !ok {
+		dim = 3
+	}
+	return vivaldi.NewModel(cc, ce, dim, filter, bus)
+}
+
+func newMembershipProtocol(peers []shared.Node, bus *eventbus.EventBus) (*gossip.Spreader, *gossip.Impl) {
+	settings := shared.NewSettings()
+	maxN, ok := settings.GetInt("FEEDBACK_COUNTER")
+	if !ok {
+		maxN = 6
+	}
+	id := shared.GetAddress()
+	capacity, ok := settings.GetInt("CAPACITY")
+	if !ok {
+		capacity = 6
+	}
+	spreader := gossip.NewSpreader(bus, maxN)
+	return spreader, gossip.NewProtocol(id, capacity, peers, gossip.NewClient(spreader, id))
 }

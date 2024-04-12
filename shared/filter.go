@@ -1,28 +1,31 @@
-package vivaldi
+package shared
 
 import (
-	"b4/shared"
 	"slices"
+	"sync"
 	"time"
 )
 
-// Filter offre un servizio generico di sampling degli rtt relativi ad un certo nodo remoto.
+// Filter offre un servizio generico di sampling degli rtt relativi a un certo nodo remoto.
 type Filter interface {
-	Update(node shared.Node, rtt time.Duration) time.Duration
+	Update(node Node, rtt time.Duration) time.Duration
 }
 
 // MPFilter filtro non lineare a percentile p.
 type MPFilter struct {
-	windows    map[shared.Node][]time.Duration
+	mu         *sync.RWMutex
+	windows    map[Node][]time.Duration
 	windowSize int
 	p          float64
 }
 
 func NewMPFilter(windowSize int, p float64) Filter {
-	return &MPFilter{windowSize: windowSize, p: p, windows: make(map[shared.Node][]time.Duration)}
+	return &MPFilter{mu: &sync.RWMutex{}, windowSize: windowSize, p: p, windows: make(map[Node][]time.Duration)}
 }
 
-func (M *MPFilter) Update(node shared.Node, rtt time.Duration) time.Duration {
+func (M *MPFilter) Update(node Node, rtt time.Duration) time.Duration {
+	M.mu.Lock()
+	defer M.mu.Unlock()
 	_, ok := M.windows[node]
 	if !ok {
 		M.windows[node] = make([]time.Duration, 0)

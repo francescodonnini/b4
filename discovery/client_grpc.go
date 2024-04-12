@@ -58,7 +58,7 @@ func (g GrpcClient) connect(node shared.Node) (pb.DiscoveryClient, error) {
 	if g.client != nil {
 		return g.client, nil
 	}
-	conn, err := grpc.Dial(node.Address(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(node.Address(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Printf("Cannot connect to %s. Error: %s\n", node.Address(), err)
 		return nil, err

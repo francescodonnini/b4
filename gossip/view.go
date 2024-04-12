@@ -72,7 +72,7 @@ func (v *PView) Increase() *PView {
 // Merge ritorna una nuova lista che è il risultato dell'unione di v e view. Questo è l'unico caso in cui si produce
 // una vista più grande della capacità, ci si aspetta che dopo Merge venga utilizzato Select per selezionare opportunamente
 // i descrittori dall'unione delle due viste. Il merge non produce viste con descrittori duplicati (con stesso indirizzo). Nel caso di
-// duplicati si tiene il descrittore con Timestamp più alto.
+// duplicati si tiene il descrittore con Timestamp più basso.
 func (v *PView) Merge(view *PView) *PView {
 	set := make(map[string]Descriptor)
 	for _, desc := range view.Descriptors() {

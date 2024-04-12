@@ -26,13 +26,16 @@ func (v *Value) Dec() {
 // il gossiping tramite il metodo Select().
 type Spreader struct {
 	mu *sync.RWMutex
-	// Go non fornisce operazioni built-in per iterare sulle chiavi di map, inoltre l'ordine delle coppie chiave-valore
-	// è implementation-dependent quindi si utilizza un array ausiliario per tenere le chiavi delle entry in cache.
-	keySet    []shared.Node
+	// L'ordine delle chiavi quando si itera su di esse tramite range è implementation-dependent quindi si utilizza un array
+	// ausiliario per poter diffondere le coordinate secondo Round-Robin.
+	keySet []shared.Node
+	// lastRound indice dell'ultima coordinata selezionata (diffusa).
 	lastRound int
 	cache     map[shared.Node]*Value
 	bus       *event_bus.EventBus
-	maxN      int
+	// maxN è il numero massimo di volte che si è disposti a ricevere una coordinata che già si sta diffondendo prima
+	// di smettere di diffondere del tutto la coordinata.
+	maxN int
 }
 
 func NewSpreader(bus *event_bus.EventBus, maxN int) *Spreader {
@@ -48,7 +51,7 @@ func NewSpreader(bus *event_bus.EventBus, maxN int) *Spreader {
 
 // Select restituisce una lista di coordinate da diffondere (se ce ne sono). Il client deve specificare
 // il numero massimo di coordinate che vuole diffondere, se il numero specificato è maggiore di quello delle coordinate
-// che si conoscono allora vengono tornate tutte, altrimenti se ne tornano n selezionate a caso.
+// che si conoscono allora vengono selezionate tutte, altrimenti se ne tornano n selezionate secondo una politica Round-Robin.
 func (s *Spreader) Select(n int) []RemoteCoord {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -62,7 +65,6 @@ func (s *Spreader) Select(n int) []RemoteCoord {
 	values := make([]RemoteCoord, 0)
 	for _, k := range keys {
 		values = append(values, s.cache[k].RemoteCoord)
-		n--
 	}
 	s.lastRound += n
 	if s.lastRound > len(s.cache) {
@@ -78,11 +80,13 @@ func (s *Spreader) Spread(updates ...RemoteCoord) {
 	defer s.mu.Unlock()
 	for _, coord := range updates {
 		c, ok := s.cache[coord.Owner]
-		if !ok || c.Age < coord.Age {
+		// Se la coordinata non è stata ancora ricevuta oppure è più recente di quella che si conosce allora
+		// occorre aggiungerla alla lista delle coordinate da diffondere.
+		if !ok || c.Age.Before(coord.Age) {
+			// Si stava diffondendo una versione obsoleta della coordinata che occorre quindi eliminare dalla lista
+			// delle coordinate da diffondere.
 			if ok {
-				s.keySet = shared.RemoveIf(s.keySet, func(node shared.Node) bool {
-					return node == c.Owner
-				})
+				s.keySet = removeByKey(s.keySet, c.Owner)
 			}
 			s.keySet = append(s.keySet, coord.Owner)
 			s.cache[coord.Owner] = NewValue(coord, s.maxN)
@@ -91,13 +95,18 @@ func (s *Spreader) Spread(updates ...RemoteCoord) {
 				Content: coord,
 			})
 		} else {
+			// È stata ricevuta una coordinata che già si conosce (e si sta diffondendo) quindi si decrementa il contatore
 			c.Dec()
 			if c.Counter == 0 {
-				s.keySet = shared.RemoveIf(s.keySet, func(node shared.Node) bool {
-					return node == c.Owner
-				})
+				s.keySet = removeByKey(s.keySet, c.Owner)
 				delete(s.cache, c.Owner)
 			}
 		}
 	}
+}
+
+func removeByKey(keySet []shared.Node, key shared.Node) []shared.Node {
+	return shared.RemoveIf(keySet, func(node shared.Node) bool {
+		return node == key
+	})
 }
