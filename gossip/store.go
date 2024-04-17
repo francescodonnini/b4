@@ -12,18 +12,18 @@ type Store interface {
 	Save(coord RemoteCoord)
 }
 
-type StoreImpl struct {
+type InMemoryStore struct {
 	mu     *sync.RWMutex
 	coords map[shared.Node]RemoteCoord
 }
 
-func NewStoreImpl() Store {
-	return &StoreImpl{
+func NewInMemoryStore() Store {
+	return &InMemoryStore{
 		mu:     &sync.RWMutex{},
 		coords: make(map[shared.Node]RemoteCoord)}
 }
 
-func (s *StoreImpl) Items() []RemoteCoord {
+func (s *InMemoryStore) Items() []RemoteCoord {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	items := make([]RemoteCoord, 0)
@@ -33,7 +33,7 @@ func (s *StoreImpl) Items() []RemoteCoord {
 	return items
 }
 
-func (s *StoreImpl) Peers() []shared.Node {
+func (s *InMemoryStore) Peers() []shared.Node {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	peers := make([]shared.Node, 0)
@@ -43,7 +43,7 @@ func (s *StoreImpl) Peers() []shared.Node {
 	return peers
 }
 
-func (s *StoreImpl) Read(node shared.Node) (RemoteCoord, bool) {
+func (s *InMemoryStore) Read(node shared.Node) (RemoteCoord, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	c, ok := s.coords[node]
@@ -53,7 +53,7 @@ func (s *StoreImpl) Read(node shared.Node) (RemoteCoord, bool) {
 	return c, ok
 }
 
-func (s *StoreImpl) Save(coord RemoteCoord) {
+func (s *InMemoryStore) Save(coord RemoteCoord) {
 	s.mu.Lock()
 	s.mu.Unlock()
 	c, ok := s.coords[coord.Owner]
