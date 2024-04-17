@@ -1,8 +1,10 @@
 package gossip
 
 import (
+	logging "b4/logging"
 	"b4/shared"
 	"math/rand"
+	"strings"
 	"sync"
 	"time"
 )
@@ -10,7 +12,7 @@ import (
 type Protocol interface {
 	OnTimeout()
 	OnReceiveReply(reply Message)
-	OnReceiveRequest(request Message) (PViewMessage, shared.Node)
+	OnReceiveRequest(request Message)
 }
 
 type Client interface {
@@ -49,14 +51,14 @@ func (i *Impl) OnReceiveReply(reply Message) {
 	i.updateView(NewView(reply.Capacity, reply.View))
 }
 
-func (i *Impl) OnReceiveRequest(request Message) (PViewMessage, shared.Node) {
+func (i *Impl) OnReceiveRequest(request Message) {
 	v := i.view.Add(NewDescriptor(i.id, 0))
 	reply := PViewMessage{
 		Capacity: v.capacity,
 		View:     v.Descriptors(),
 	}
 	i.updateView(NewView(request.Capacity, request.View))
-	return reply, request.Source
+	i.client.SendReply(reply, request.Timestamp, request.Source)
 }
 
 func (i *Impl) OnTimeout() {
@@ -76,4 +78,13 @@ func (i *Impl) updateView(other *PView) {
 	v = v.Select()
 	v = v.Increase()
 	i.view = v
+	logging.GetInstance("view").Println(str(v))
+}
+
+func str(v *PView) string {
+	view := make([]string, 0)
+	for _, n := range v.Descriptors() {
+		view = append(view, n.Ip)
+	}
+	return strings.Join(view, ",")
 }

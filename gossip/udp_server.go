@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/gob"
-	event_bus "github.com/francescodonnini/pubsub"
+	eventbus "github.com/francescodonnini/pubsub"
 	"log"
 	"net"
 	"time"
@@ -15,11 +15,10 @@ type UdpServer struct {
 	id       shared.Node
 	sampling Protocol
 	filter   shared.Filter
-	client   Client
-	bus      *event_bus.EventBus
+	bus      *eventbus.EventBus
 }
 
-func NewUdpServer(id shared.Node, sampling Protocol, filter shared.Filter, bus *event_bus.EventBus) *UdpServer {
+func NewUdpServer(id shared.Node, sampling Protocol, filter shared.Filter, bus *eventbus.EventBus) *UdpServer {
 	return &UdpServer{id: id, sampling: sampling, bus: bus, filter: filter}
 }
 
@@ -46,17 +45,17 @@ func (s *UdpServer) Serve(ctx context.Context) {
 			}
 			message, err := decodeMessage(buf[:n])
 			if err != nil {
+				log.Println(err)
 				continue
 			}
-			s.bus.Publish(event_bus.Event{Topic: "coord/update", Content: message.Coords})
+			s.bus.Publish(eventbus.Event{Topic: "coord/update", Content: message.Coords})
 			message.View = s.removeSelf(message.View)
 			if message.Type == Reply {
 				rtt := time.Now().Sub(message.Timestamp)
 				s.filter.Update(message.Source, rtt)
 				s.sampling.OnReceiveReply(message)
 			} else if message.Type == Request {
-				reply, source := s.sampling.OnReceiveRequest(message)
-				s.client.SendReply(reply, message.Timestamp, source)
+				s.sampling.OnReceiveRequest(message)
 			}
 		}
 	}()

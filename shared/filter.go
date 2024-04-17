@@ -44,3 +44,14 @@ func (M *MPFilter) Update(node Node, rtt time.Duration) time.Duration {
 	i := int(float64(len(samples)) * M.p)
 	return samples[i]
 }
+
+type RawFilter struct {
+}
+
+func NewRawFilter() *RawFilter {
+	return &RawFilter{}
+}
+
+func (r *RawFilter) Update(node Node, rtt time.Duration) time.Duration {
+	return rtt
+}

@@ -3,6 +3,7 @@ package main
 import (
 	discv "b4/discovery"
 	"b4/gossip"
+	"b4/logging"
 	"b4/repl"
 	"b4/repl/shell_grpc"
 	"b4/repl/shell_grpc/shell_pb"
@@ -16,6 +17,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"os"
 	"time"
 )
 
@@ -61,6 +63,7 @@ func main() {
 		for e := range storeLis {
 			coord := e.Content.(gossip.RemoteCoord)
 			store.Save(coord)
+			logging.GetInstance("store").Printf("%v\n", coord)
 		}
 	}()
 	lis, err := net.Listen("tcp", id.Address())
@@ -71,7 +74,8 @@ func main() {
 	go startGrpcServices(model, repl.NewShell(id, store), lis)
 	go startUdpServer(context.Background(), id, filter, membership, bus)
 	go startUdpClient(membership, settings)
-	select {}
+	time.Sleep(30 * time.Minute)
+	os.Exit(0)
 }
 
 func bootstrap(id shared.Node, discovery discv.Client) []shared.Node {
@@ -139,6 +143,14 @@ func startHeartBeatClient(beat *discv.HeartBeatClient, settings shared.Settings)
 }
 
 func newFilter(settings shared.Settings) shared.Filter {
+	typ, ok := settings.GetString("FILTER")
+	if !ok {
+		typ = "MP"
+	}
+	if typ == "RAW" {
+		log.Println("raw")
+		return shared.NewRawFilter()
+	}
 	winSz, ok := settings.GetInt("MPF_WINDOW_SIZE")
 	if !ok {
 		winSz = 16

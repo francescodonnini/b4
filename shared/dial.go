@@ -9,6 +9,7 @@ import (
 
 type Dialer interface {
 	Dial(target Node) (*grpc.ClientConn, error)
+	Close()
 }
 
 type Impl struct {
@@ -36,4 +37,16 @@ func (c *Impl) Dial(target Node) (*grpc.ClientConn, error) {
 	}
 	c.cache[target] = conn
 	return conn, nil
+}
+
+func (c *Impl) Close() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, conn := range c.cache {
+		err := conn.Close()
+		if err != nil {
+			log.Printf("cannot close grpc connection, error: %s\n", err)
+			continue
+		}
+	}
 }

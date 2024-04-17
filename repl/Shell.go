@@ -10,7 +10,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"time"
 )
 
 type Shell interface {
@@ -77,6 +76,23 @@ func (i *Impl) parseDist(fields []string) ([]byte, error) {
 			}
 			return bytes, nil
 		}
+	} else if fields[0] == "--all" {
+		self, ok := i.store.Read(i.id)
+		if !ok {
+			return make([]byte, 0), fmt.Errorf("self (%s) coord not present", i.id.Ip)
+		}
+		rtts := make(map[string]float64)
+		for _, c := range i.store.Items() {
+			if c.Owner == self.Owner {
+				continue
+			}
+			rtts[c.Owner.Ip] = self.Coord.Sub(c.Coord).Magnitude()
+		}
+		bytes, err := json.Marshal(rtts)
+		if err != nil {
+			return make([]byte, 0), err
+		}
+		return bytes, nil
 	}
 	return make([]byte, 0), fmt.Errorf("invalid argument for \"dist\"")
 }
@@ -127,32 +143,40 @@ func (i *Impl) parsePeers(_ []string) ([]byte, error) {
 	return bytes, nil
 }
 
+type ErrorResponse struct {
+	Ip    string
+	Error float64
+}
+
 func (i *Impl) parseError(fields []string) ([]byte, error) {
-	param, err := strconv.ParseInt(fields[0], 10, 32)
+	rtt, err := strconv.ParseInt(fields[0], 10, 32)
 	if err != nil {
 		return nil, errors.New("invalid rtt")
 	}
 	self, ok := i.store.Read(i.id)
 	if !ok {
-		return nil, errors.New("self coord does not exists")
+		return nil, errors.New(fmt.Sprintf("self coord (%s) does not exists", i.id.Ip))
 	}
 	peers := i.store.Items()
-	if len(peers) <= 0 {
+	if len(peers)-1 <= 0 {
 		return nil, errors.New("no other coordinates known")
 	}
+	rttSeconds := float64(rtt) / 1000
 	e := make([]float64, 0)
-	rtt := time.Duration(param) * time.Millisecond
 	for _, it := range peers {
-		if it.Owner == self.Owner {
+		if it.Owner == i.id {
 			continue
 		}
-		dist := time.Duration(self.Coord.Sub(it.Coord).Magnitude()) * time.Second
-		e = append(e, math.Abs(dist.Seconds()-rtt.Seconds()))
+		dist := self.Coord.Sub(it.Coord).Magnitude()
+		e = append(e, math.Abs(dist-rttSeconds)/rttSeconds)
 	}
 	slices.Sort(e)
-	bytes, err := json.Marshal(e[len(e)/2])
+	bytes, err := json.Marshal(ErrorResponse{
+		Ip:    i.id.Ip,
+		Error: e[len(e)/2],
+	})
 	if err != nil {
-		return make([]byte, 0), errors.New("cannot retrieve node error")
+		return make([]byte, 0), errors.New(fmt.Sprintf("cannot retrieve node (%s) error", i.id.Ip))
 	}
 	return bytes, nil
 }
