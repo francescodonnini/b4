@@ -5,7 +5,6 @@ import (
 	"math/rand"
 	"sort"
 	"sync"
-	"time"
 )
 
 // PView rappresenta le viste parziali che hanno i nodi sui membri del sistema. La vista ha una capacità (numero massimo
@@ -21,11 +20,11 @@ func NewView(capacity int, view []Descriptor) *PView {
 }
 
 // Add si comporta essenzialmente come Merge ma aggiunge un solo descrittore, è un metodo di comodo che viene
-// utilizzato dal nodo per aggiungere se stesso (con il Timestamp più recente).
+// utilizzato dal nodo per aggiungere se stesso (con Age più recente).
 func (v *PView) Add(descriptor Descriptor) *PView {
 	view := v.Descriptors()
 	i, exists := indexOf(view, descriptor.Node)
-	if exists && view[i].Timestamp < descriptor.Timestamp {
+	if exists && view[i].Age < descriptor.Age {
 		view[i] = descriptor
 	} else {
 		view = append(view, descriptor)
@@ -53,7 +52,6 @@ func (v *PView) Descriptors() []Descriptor {
 }
 
 func (v *PView) GetDescriptor() Descriptor {
-	rand.NewSource(time.Now().Unix())
 	v.mu.RLock()
 	defer v.mu.RUnlock()
 	return v.view[rand.Intn(len(v.view))]
@@ -64,7 +62,7 @@ func (v *PView) Increase() *PView {
 	defer v.mu.RUnlock()
 	view := make([]Descriptor, len(v.view))
 	for i, desc := range v.view {
-		view[i] = NewDescriptor(desc.Node, desc.Timestamp+1)
+		view[i] = NewDescriptor(desc.Node, desc.Age+1)
 	}
 	return NewView(v.capacity, view)
 }
@@ -72,7 +70,7 @@ func (v *PView) Increase() *PView {
 // Merge ritorna una nuova lista che è il risultato dell'unione di v e view. Questo è l'unico caso in cui si produce
 // una vista più grande della capacità, ci si aspetta che dopo Merge venga utilizzato Select per selezionare opportunamente
 // i descrittori dall'unione delle due viste. Il merge non produce viste con descrittori duplicati (con stesso indirizzo). Nel caso di
-// duplicati si tiene il descrittore con Timestamp più basso.
+// duplicati si tiene il descrittore con Age più basso.
 func (v *PView) Merge(view *PView) *PView {
 	set := make(map[string]Descriptor)
 	for _, desc := range view.Descriptors() {
@@ -81,7 +79,7 @@ func (v *PView) Merge(view *PView) *PView {
 	for _, desc := range v.Descriptors() {
 		hit, ok := set[desc.Address()]
 		if ok {
-			if hit.Timestamp > desc.Timestamp {
+			if hit.Age > desc.Age {
 				set[desc.Address()] = desc
 			}
 		} else {
@@ -95,11 +93,14 @@ func (v *PView) Merge(view *PView) *PView {
 	return NewView(v.capacity, buffer)
 }
 
-// Select seleziona i primi c (capacità) nodi ordinati per Timestamp.
+// Select seleziona i primi c (capacità) nodi ordinati per Age.
 func (v *PView) Select() *PView {
 	view := v.Descriptors()
+	rand.Shuffle(len(view), func(i, j int) {
+		view[i], view[j] = view[j], view[i]
+	})
 	sort.Slice(view, func(i, j int) bool {
-		return view[i].Timestamp < view[j].Timestamp
+		return view[i].Age < view[j].Age
 	})
 	return NewView(v.capacity, view[:v.capacity])
 }

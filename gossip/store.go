@@ -9,6 +9,7 @@ type Store interface {
 	Peers() []shared.Node
 	Items() []RemoteCoord
 	Read(node shared.Node) (RemoteCoord, bool)
+	Remove(node shared.Node)
 	Save(coord RemoteCoord)
 }
 
@@ -51,6 +52,12 @@ func (s *InMemoryStore) Read(node shared.Node) (RemoteCoord, bool) {
 		return RemoteCoord{}, ok
 	}
 	return c, ok
+}
+
+func (s *InMemoryStore) Remove(node shared.Node) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.coords, node)
 }
 
 func (s *InMemoryStore) Save(coord RemoteCoord) {

@@ -3,7 +3,6 @@ package vivaldi
 import (
 	"math"
 	"math/rand"
-	"time"
 )
 
 type Vec []float64
@@ -57,7 +56,6 @@ func (v Vec) Unit() Vec {
 }
 
 func NewRandomUnit(n int) Vec {
-	rand.NewSource(time.Now().Unix())
 	values := make([]float64, n)
 	for i := 0; i < n; i++ {
 		values[i] = rand.Float64()

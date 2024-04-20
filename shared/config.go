@@ -8,15 +8,51 @@ import (
 
 type Settings interface {
 	GetBool(key string) (bool, bool)
+	GetBoolOrDefault(key string, b bool) bool
 	GetFloat(key string) (float64, bool)
+	GetFloatOrDefault(key string, f float64) float64
 	GetInt(key string) (int, bool)
+	GetIntOrDefault(key string, i int) int
 	GetString(key string) (string, bool)
+	GetStringOrDefault(key string, s string) string
 }
 
 type EnvSettings struct{}
 
 func NewSettings() Settings {
 	return &EnvSettings{}
+}
+
+func (e *EnvSettings) GetBoolOrDefault(key string, b bool) bool {
+	v, ok := e.GetBool(key)
+	if !ok {
+		v = b
+	}
+	return v
+}
+
+func (e *EnvSettings) GetFloatOrDefault(key string, f float64) float64 {
+	v, ok := e.GetFloat(key)
+	if !ok {
+		v = f
+	}
+	return v
+}
+
+func (e *EnvSettings) GetIntOrDefault(key string, i int) int {
+	v, ok := e.GetInt(key)
+	if !ok {
+		v = i
+	}
+	return v
+}
+
+func (e *EnvSettings) GetStringOrDefault(key string, s string) string {
+	v, ok := e.GetString(key)
+	if !ok {
+		v = s
+	}
+	return v
 }
 
 func (e *EnvSettings) GetBool(key string) (bool, bool) {

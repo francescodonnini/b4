@@ -25,7 +25,6 @@ type ModelImpl struct {
 }
 
 func NewModel(cc, ce float64, n int, sampler shared.Filter, bus *eventbus.EventBus) Model {
-	rand.NewSource(time.Now().Unix())
 	return &ModelImpl{
 		cc: cc,
 		ce: ce,

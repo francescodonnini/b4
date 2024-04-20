@@ -9,8 +9,10 @@ import (
 )
 
 func main() {
+	config := shared.NewSettings()
+	retention := config.GetIntOrDefault("RETENTION", 3)
 	bus := eventbus.NewEventBus()
-	store := gossip.NewInMemoryStore()
+	store := gossip.NewRetentionPolicy(gossip.NewInMemoryStore(), time.Duration(retention)*time.Minute)
 	go initialize(bus, store)
 	coords := bus.Subscribe("coord/app")
 	for e := range coords {
