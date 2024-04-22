@@ -3,7 +3,6 @@ package gossip
 import (
 	"b4/shared"
 	event_bus "github.com/francescodonnini/pubsub"
-	"log"
 	"sync"
 )
 
@@ -32,7 +31,7 @@ type Spreader struct {
 	keySet []shared.Node
 	// lastRound indice dell'ultima coordinata selezionata (diffusa).
 	lastRound int
-	cache     map[shared.Node]*Value
+	infected  map[shared.Node]*Value
 	removed   map[shared.Node]RemoteCoord
 	bus       *event_bus.EventBus
 	// maxN è il numero massimo di volte che si è disposti a ricevere una coordinata che già si sta diffondendo prima
@@ -44,7 +43,7 @@ func NewSpreader(bus *event_bus.EventBus, maxN int) *Spreader {
 	return &Spreader{
 		bus:       bus,
 		keySet:    make([]shared.Node, 0),
-		cache:     make(map[shared.Node]*Value),
+		infected:  make(map[shared.Node]*Value),
 		removed:   make(map[shared.Node]RemoteCoord),
 		mu:        &sync.RWMutex{},
 		maxN:      maxN,
@@ -59,7 +58,7 @@ func (s *Spreader) Select(n int) []RemoteCoord {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var keys []shared.Node
-	if n < len(s.cache) {
+	if n < len(s.infected) {
 		keys = s.keySet[s.lastRound:]
 	} else {
 		keys = s.keySet[:]
@@ -67,10 +66,10 @@ func (s *Spreader) Select(n int) []RemoteCoord {
 	}
 	values := make([]RemoteCoord, 0)
 	for _, k := range keys {
-		values = append(values, s.cache[k].RemoteCoord)
+		values = append(values, s.infected[k].RemoteCoord)
 	}
 	s.lastRound += n
-	if s.lastRound > len(s.cache) {
+	if s.lastRound > len(s.infected) {
 		s.lastRound = 0
 	}
 	return values
@@ -84,13 +83,13 @@ func (s *Spreader) Spread(updates ...RemoteCoord) {
 	for _, coord := range updates {
 		// La coordinata non è attualmente nel gruppo delle coordinate che si vuole diffondere, però potrebbe
 		// essere tra quelle che si ha diffuso in passato.
-		if v, ok := s.cache[coord.Owner]; !ok {
+		if v, ok := s.infected[coord.Owner]; !ok {
 			c, ok := s.removed[coord.Owner]
 			// La coordinata non è stata mai diffusa in passato oppure
 			// La coordinata è stata già diffusa in passato però quella appena ricevuto è una versione aggiornata
 			if !ok || (ok && c.Age.Before(coord.Age)) {
 				delete(s.removed, c.Owner)
-				s.updateCache(coord)
+				s.updateInfectedSet(coord)
 			}
 		} else if v.Age.Before(coord.Age) {
 			// La coordinata sta venendo diffusa però si ha ricevuto una versione più recente di quella che si conosce allora
@@ -100,23 +99,22 @@ func (s *Spreader) Spread(updates ...RemoteCoord) {
 			if ok {
 				s.keySet = removeByKey(s.keySet, v.Owner)
 			}
-			s.updateCache(coord)
+			s.updateInfectedSet(coord)
 		} else {
 			// È stata ricevuta una coordinata che già si conosce (e si sta diffondendo) quindi si decrementa il contatore
 			v.Dec()
 			if v.Counter == 0 {
-				log.Printf("removing %s\n", v.Owner.Ip)
 				s.keySet = removeByKey(s.keySet, v.Owner)
-				delete(s.cache, v.Owner)
+				delete(s.infected, v.Owner)
 				s.removed[v.Owner] = v.RemoteCoord
 			}
 		}
 	}
 }
 
-func (s *Spreader) updateCache(c RemoteCoord) {
+func (s *Spreader) updateInfectedSet(c RemoteCoord) {
 	s.keySet = append(s.keySet, c.Owner)
-	s.cache[c.Owner] = NewValue(c, s.maxN)
+	s.infected[c.Owner] = NewValue(c, s.maxN)
 	s.bus.Publish(event_bus.Event{
 		Topic:   "coord/store",
 		Content: c,
