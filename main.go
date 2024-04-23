@@ -5,6 +5,7 @@ import (
 	"b4/shared"
 	"b4/vivaldi"
 	eventbus "github.com/francescodonnini/pubsub"
+	"log"
 	"time"
 )
 
@@ -16,6 +17,7 @@ func main() {
 	go initialize(bus, store)
 	coords := bus.Subscribe("coord/app")
 	for e := range coords {
-		_ = e.Content.(shared.Pair[vivaldi.Coord, time.Time])
+		p := e.Content.(shared.Pair[vivaldi.Coord, time.Time])
+		log.Printf("coord/app: %v\n", p.First)
 	}
 }
