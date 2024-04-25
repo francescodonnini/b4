@@ -3,9 +3,6 @@ package main
 import (
 	discv "b4/discovery"
 	"b4/gossip"
-	"b4/repl"
-	"b4/repl/shell_grpc"
-	"b4/repl/shell_grpc/shell_pb"
 	"b4/shared"
 	"b4/vivaldi"
 	"b4/vivaldi/vivaldi_grpc"
@@ -17,7 +14,6 @@ import (
 	"log"
 	"math/rand"
 	"net"
-	"os"
 	"time"
 )
 
@@ -49,7 +45,9 @@ func initialize(bus *eventbus.EventBus, store gossip.Store) {
 	go func() {
 		for e := range appLis {
 			pair := e.Content.(shared.Pair[vivaldi.Coord, time.Time])
-			spreader.Spread(gossip.NewRemoteCoord(id, pair.First, pair.Second))
+			coord := gossip.NewRemoteCoord(id, pair.First, pair.Second)
+			store.Save(coord)
+			spreader.Spread(coord)
 		}
 	}()
 	// Ogni volta che si ricevono nuove coordinate vengono passate all'unità di gossiping per essere diffuse.
@@ -73,12 +71,12 @@ func initialize(bus *eventbus.EventBus, store gossip.Store) {
 		log.Fatalf("Failed to listen: %s\n", err)
 	}
 	go startVivaldiClient(membership, model, settings)
-	go startGrpcServices(model, repl.NewShell(id, store), lis)
+	go startGrpcServices(model, lis)
 	go startUdpServer(context.Background(), id, filter, membership, bus)
 	go startUdpClient(membership, settings)
 	exitLis := bus.Subscribe("b4/exit")
 	for range exitLis {
-		os.Exit(0)
+		return
 	}
 }
 
@@ -103,10 +101,10 @@ func startUdpServer(ctx context.Context, id shared.Node, filter shared.Filter, m
 	srv.Serve(ctx)
 }
 
-func startGrpcServices(model vivaldi.Model, shell repl.Shell, lis net.Listener) {
+func startGrpcServices(model vivaldi.Model, lis net.Listener) {
 	srv := grpc.NewServer()
+	defer srv.Stop()
 	vivaldi_pb.RegisterVivaldiServer(srv, vivaldi_grpc.NewServer(model))
-	shell_pb.RegisterShellServer(srv, shell_grpc.NewGrpcServer(shell))
 	err := srv.Serve(lis)
 	if err != nil {
 		log.Fatalf("Cannot serve: %s\n", err)
@@ -115,7 +113,9 @@ func startGrpcServices(model vivaldi.Model, shell repl.Shell, lis net.Listener) 
 
 func startVivaldiClient(sampl shared.PeerSampling, model vivaldi.Model, settings shared.Settings) {
 	timeout := settings.GetIntOrDefault("GOSSIP_TIMEOUT", 3000)
-	client := vivaldi_grpc.NewClient(sampl, model, shared.NewDialer())
+	dialer := shared.NewDialer()
+	dialer.Close()
+	client := vivaldi_grpc.NewClient(sampl, model, dialer)
 	ticker := time.NewTicker(time.Duration(timeout) * time.Millisecond)
 	for range ticker.C {
 		client.Update()

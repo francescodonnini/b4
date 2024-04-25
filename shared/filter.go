@@ -23,25 +23,25 @@ func NewMPFilter(windowSize int, p float64) Filter {
 	return &MPFilter{mu: &sync.RWMutex{}, windowSize: windowSize, p: p, windows: make(map[Node][]time.Duration)}
 }
 
-func (M *MPFilter) Update(node Node, rtt time.Duration) time.Duration {
-	M.mu.Lock()
-	defer M.mu.Unlock()
-	_, ok := M.windows[node]
+func (f *MPFilter) Update(node Node, rtt time.Duration) time.Duration {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	_, ok := f.windows[node]
 	if !ok {
-		M.windows[node] = make([]time.Duration, 0)
+		f.windows[node] = make([]time.Duration, 0)
 	}
-	window := M.windows[node]
-	if len(window) < M.windowSize {
+	window := f.windows[node]
+	if len(window) < f.windowSize {
 		window = append(window, rtt)
-		M.windows[node] = window
+		f.windows[node] = window
 		return rtt
 	}
 	window = append(window[1:], rtt)
-	M.windows[node] = window
-	samples := make([]time.Duration, M.windowSize)
+	f.windows[node] = window
+	samples := make([]time.Duration, f.windowSize)
 	copy(samples, window)
 	slices.Sort(samples)
-	i := int(float64(len(samples)) * M.p)
+	i := int(float64(len(samples)) * f.p)
 	return samples[i]
 }
 

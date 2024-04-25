@@ -62,7 +62,7 @@ func (s *InMemoryStore) Remove(node shared.Node) {
 
 func (s *InMemoryStore) Save(coord RemoteCoord) {
 	s.mu.Lock()
-	s.mu.Unlock()
+	defer s.mu.Unlock()
 	c, ok := s.coords[coord.Owner]
 	if !ok || c.Age.Before(coord.Age) {
 		s.coords[coord.Owner] = coord
