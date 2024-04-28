@@ -32,7 +32,7 @@ func initialize(bus *eventbus.EventBus, store gossip.Store) {
 	filter := newFilter(settings)
 	model := newVivaldiModel(bus, filter, settings)
 	spreader, membership := newMembershipProtocol(peers, bus)
-	energy := vivaldi.NewEnergySlidingWindow(16, 0.001, bus)
+	energy := newEnergySlidingWindow(bus, settings)
 	// Si mette in ascolto delle coordinate di sistema per aggiornare la coordinata di applicazione.
 	energyLis := bus.Subscribe("coord/sys")
 	go func() {
@@ -136,6 +136,12 @@ func startHeartBeatClient(beat *discv.HeartBeatClient, settings shared.Settings)
 	for range ticker.C {
 		beat.Beat()
 	}
+}
+
+func newEnergySlidingWindow(bus *eventbus.EventBus, settings shared.Settings) *vivaldi.EnergySlidingWindow {
+	h := settings.GetIntOrDefault("WINDOW_SIZE", 16)
+	t := settings.GetFloatOrDefault("THRESHOLD", 0.001)
+	return vivaldi.NewEnergySlidingWindow(h, t, bus)
 }
 
 func newFilter(settings shared.Settings) shared.Filter {
